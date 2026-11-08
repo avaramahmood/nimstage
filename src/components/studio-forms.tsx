@@ -1,8 +1,9 @@
 import { useRouter } from "@/lib/nav";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/toast";
 import { ACCENTS, ACCENT_KEYS, MAX_LINKS, type ArtistLink } from "@shared/artist";
+import { dayOptions, joinLocalValue, nextSlot, splitLocalValue, toLocalValue } from "@shared/when";
 
 function useSubmit() {
   const router = useRouter();
@@ -172,9 +173,34 @@ export function TrackForm() {
   );
 }
 
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
+const two = (n: number) => String(n).padStart(2, "0");
+
+/** Day / hour / minute dropdowns. No native date-time picker: those can freeze embedded WebViews. */
+function WhenPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const parts = splitLocalValue(value) ?? splitLocalValue(toLocalValue(nextSlot()))!;
+  const days = useMemo(() => dayOptions(), []);
+  const options = days.some((d) => d.value === parts.date) ? days : [{ value: parts.date, label: parts.date }, ...days];
+  const set = (patch: Partial<typeof parts>) => onChange(joinLocalValue({ ...parts, ...patch }));
+  return (
+    <div className="mt-1 grid grid-cols-[1fr_auto_auto] gap-2">
+      <select className="field" aria-label="Day" value={parts.date} onChange={(e) => set({ date: e.target.value })}>
+        {options.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+      </select>
+      <select className="field" aria-label="Hour" value={parts.hour} onChange={(e) => set({ hour: Number(e.target.value) })}>
+        {HOURS.map((h) => <option key={h} value={h}>{two(h)}</option>)}
+      </select>
+      <select className="field" aria-label="Minute" value={parts.minute} onChange={(e) => set({ minute: Number(e.target.value) })}>
+        {[...new Set([...MINUTES, parts.minute])].sort((a, b) => a - b).map((m) => <option key={m} value={m}>{two(m)}</option>)}
+      </select>
+    </div>
+  );
+}
+
 export function ShowForm({ tracks }: { tracks: { id: string; title: string }[] }) {
   const { busy, error, run } = useSubmit();
-  const [f, setF] = useState({ title: "", description: "", startsAt: "", durationMin: "45", priceNim: "2", kind: tracks.length ? "premiere" : "live", trackId: tracks[0]?.id ?? "" });
+  const [f, setF] = useState({ title: "", description: "", startsAt: toLocalValue(nextSlot()), durationMin: "45", priceNim: "2", kind: tracks.length ? "premiere" : "live", trackId: tracks[0]?.id ?? "" });
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
   return (
     <FormShell
@@ -198,7 +224,11 @@ export function ShowForm({ tracks }: { tracks: { id: string; title: string }[] }
       </Field>
       <Field label="Title"><input className="field" required maxLength={80} value={f.title} onChange={set("title")} /></Field>
       <Field label="Description"><textarea className="field" rows={3} maxLength={600} value={f.description} onChange={set("description")} /></Field>
-      <Field label="Starts at" hint="Your local time."><input className="field" type="datetime-local" required value={f.startsAt} onChange={set("startsAt")} /></Field>
+      <fieldset>
+        <legend className="label">Starts at</legend>
+        <WhenPicker value={f.startsAt} onChange={(v) => setF((x) => ({ ...x, startsAt: v }))} />
+        <span className="mt-1 block text-sm text-muted">Your local time.</span>
+      </fieldset>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Length (min)"><input className="field" inputMode="numeric" required value={f.durationMin} onChange={(e) => setF((x) => ({ ...x, durationMin: e.target.value.replace(/\D/g, "") }))} /></Field>
         <Field label="Ticket (NIM)" hint="0 = free, 5 NIM at most"><input className="field" inputMode="decimal" value={f.priceNim} onChange={(e) => setF((x) => ({ ...x, priceNim: e.target.value.replace(/[^0-9.]/g, "") }))} /></Field>

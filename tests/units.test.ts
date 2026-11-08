@@ -6,6 +6,7 @@ import { buildIcs, googleCalendarUrl, icsDate, icsEscape } from "@shared/calenda
 import { coverColors, coverStyle, fmtDuration, hash } from "@shared/format";
 import { checkEnv } from "@srv/env";
 import { joinWindow } from "@shared/live";
+import { dayOptions, joinLocalValue, nextSlot, splitLocalValue, toLocalValue } from "@shared/when";
 import { ACCENTS, MAX_LINKS, accentColor, isSafeLink, readLinks } from "@shared/artist";
 import { formatNim, lunaToNim, MAX_LUNA, MAX_NIM, nimToLuna, normalizeAddress, shortAddress, TIP_PRESETS_NIM } from "@shared/units";
 import { readBars } from "@/lib/spectrum";
@@ -169,6 +170,24 @@ test("artist profile: accents come from a fixed palette", () => {
   assert.equal(accentColor("hotpink"), null);
   assert.equal(accentColor(undefined), null);
   assert.ok(Object.values(ACCENTS).every((c) => /^#[0-9a-f]{6}$/i.test(c)));
+});
+test("scheduler: default start, value round-trip and day list", () => {
+  const now = new Date(2026, 10, 8, 22, 50, 31); // 8 Nov 2026, 22:50 local
+  const slot = nextSlot(now);
+  assert.equal(toLocalValue(slot), "2026-11-08T23:15", "at least 15 minutes ahead, on a quarter hour");
+  assert.equal(toLocalValue(nextSlot(new Date(2026, 10, 8, 23, 50))), "2026-11-09T00:15", "rolls past midnight");
+  assert.equal(toLocalValue(nextSlot(new Date(2026, 11, 31, 23, 50))), "2027-01-01T00:15", "rolls past new year");
+  const parts = splitLocalValue("2026-11-09T19:30")!;
+  assert.deepEqual(parts, { date: "2026-11-09", hour: 19, minute: 30 });
+  assert.equal(joinLocalValue(parts), "2026-11-09T19:30");
+  assert.equal(joinLocalValue({ date: "2026-11-09", hour: 7, minute: 5 }), "2026-11-09T07:05", "zero padded");
+  for (const bad of ["", "2026-11-09", "2026-11-09T24:00", "2026-11-09T10:60", "tomorrow"]) assert.equal(splitLocalValue(bad), null, bad);
+  assert.equal(new Date(joinLocalValue(parts)).getHours(), 19, "parses as local time, so toISOString() sends the right instant");
+  const days = dayOptions(now, 3);
+  assert.deepEqual(days.map((d) => d.value), ["2026-11-08", "2026-11-09", "2026-11-10"]);
+  assert.match(days[0].label, /^Today/);
+  assert.match(days[1].label, /^Tomorrow/);
+  assert.equal(dayOptions(new Date(2026, 11, 30), 3)[2].value, "2027-01-01", "crosses the year");
 });
 test("units: address helpers", () => {
   assert.equal(normalizeAddress("nq07 0000 0000"), "NQ070000" + "0000");

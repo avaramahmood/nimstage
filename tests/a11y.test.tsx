@@ -185,4 +185,22 @@ describe("behaviour in the rendered app", () => {
     fireEvent.click(Array.from(view.container.querySelectorAll("button")).find((b) => /Add a link/.test(b.textContent ?? ""))!);
     expect(view.container.querySelector('input[placeholder="https://"]')).not.toBeNull();
   }, 30_000);
+
+  it("studio: scheduling a show uses plain dropdowns, never the native date-time picker (it can freeze embedded WebViews)", async () => {
+    await login("artist");
+    const view = await renderPage("/studio/show/new");
+    await waitFor(() => expect(view.container.textContent).toContain("Starts at"));
+    expect(view.container.querySelector('input[type="datetime-local"], input[type="date"], input[type="time"]')).toBeNull();
+    const day = view.container.querySelector<HTMLSelectElement>('select[aria-label="Day"]')!;
+    const hour = view.container.querySelector<HTMLSelectElement>('select[aria-label="Hour"]')!;
+    const minute = view.container.querySelector<HTMLSelectElement>('select[aria-label="Minute"]')!;
+    expect(day && hour && minute).toBeTruthy();
+    expect(day.options.length).toBe(60);
+    expect(day.options[0].textContent).toMatch(/^Today/);
+    expect(day.value).toMatch(/^\d{4}-\d{2}-\d{2}$/); // a valid default is already selected
+    fireEvent.change(hour, { target: { value: "21" } });
+    fireEvent.change(minute, { target: { value: "30" } });
+    await waitFor(() => expect(view.container.querySelector<HTMLSelectElement>('select[aria-label="Hour"]')!.value).toBe("21"));
+    expect(view.container.querySelector<HTMLSelectElement>('select[aria-label="Minute"]')!.value).toBe("30");
+  }, 30_000);
 });
