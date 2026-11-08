@@ -146,6 +146,19 @@ export const DDL: string[] = [
     PRIMARY KEY (poll_id, user_id)
   )`,
   // Columns added after the first release: idempotent, so existing databases migrate on boot.
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS username text`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS username_changed_at timestamptz`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_key text`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS banner_key text`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS bio text NOT NULL DEFAULT ''`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS links text NOT NULL DEFAULT '[]'`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS accent text NOT NULL DEFAULT ''`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS show_pass boolean NOT NULL DEFAULT true`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower ON users (lower(username))`,
+  // An artist's username is their page handle. Backfill once, skipping any clash instead of failing the boot.
+  `UPDATE users SET username = a.handle FROM artists a WHERE a.user_id = users.id AND users.username IS NULL AND NOT EXISTS (SELECT 1 FROM users u2 WHERE lower(u2.username) = lower(a.handle))`,
+  `UPDATE users SET username = 'demo_fan' WHERE id = 'demo-fan' AND username IS NULL`,
+  `UPDATE users SET username = 'demo_admin' WHERE id = 'demo-admin' AND username IS NULL`,
   `ALTER TABLE artists ADD COLUMN IF NOT EXISTS avatar_key text`,
   `ALTER TABLE artists ADD COLUMN IF NOT EXISTS banner_key text`,
   `ALTER TABLE artists ADD COLUMN IF NOT EXISTS tagline text NOT NULL DEFAULT ''`,

@@ -320,6 +320,17 @@ await test("tracks: the track page shows price and access, offers a separate buy
   assert.equal((await view("tr-miravale-2", null)).json.access, false, "still locked for everyone else");
 });
 
+await test("chat: messages carry the person's name and @username, never a wallet address", async () => {
+  // the fan holds a ticket for showId (bought above), so they can talk
+  assert.equal((await call(`/api/shows/${showId}/chat`, { body: { body: "hello from the test" }, as: fan })).status, 200);
+  const chat = (await (await fetch(`${base}/api/shows/${showId}/chat`)).json()) as { messages: { body: string; name: string; username: string | null; userId: string }[] };
+  const m = chat.messages.find((x) => x.body === "hello from the test");
+  assert.ok(m, "the message is in the room");
+  assert.equal(m!.username, "demo_fan");
+  assert.equal(m!.name, "Demo Fan");
+  assert.ok(!/^NQdd/i.test(m!.name), "a name is never a wallet address");
+});
+
 /* ------------------------------- live video ------------------------------- */
 const jwtClaims = (t: string) => JSON.parse(Buffer.from(t.split(".")[1], "base64url").toString());
 const liveShow = (startsInMin: number, priceNim = 2) => call("/api/studio/shows", { body: { title: "Live Video Test", description: "d", startsAt: new Date(Date.now() + startsInMin * 60_000).toISOString(), durationMin: 30, priceNim, kind: "live" }, as: artist });

@@ -5,6 +5,8 @@ import { getDb, schema } from "@srv/db";
 import { HttpError, body, rateLimit, requireUser } from "@srv/http";
 import { clearSession } from "@srv/session";
 import { getArtistByUser } from "@srv/data";
+import { ACCENT_KEYS, MAX_LINKS, isSafeLink } from "@shared/artist";
+import { deleteMedia } from "@srv/storage";
 
 export const account = new Hono();
 
@@ -13,10 +15,28 @@ const { users, paymentIntents, entitlements, follows, pollVotes, chatMessages, s
 account.patch("/me", async (c) => {
   const user = await requireUser(c);
   rateLimit(`rename:${user.id}`, 10, 60_000);
-  const { displayName } = z.object({ displayName: z.string().trim().min(2, "Use at least 2 characters").max(30, "Use 30 characters or fewer") }).parse(await body(c));
+  const b = z
+    .object({
+      displayName: z.string().trim().min(2, "Use at least 2 characters").max(30, "Use 30 characters or fewer").optional(),
+      bio: z.string().trim().max(160, "Keep your bio under 160 characters").optional(),
+      accent: z.enum([...ACCENT_KEYS, ""]).optional(),
+      links: z
+        .array(z.object({ label: z.string().trim().min(1, "Give each link a label").max(24, "Link labels are 24 characters at most"), url: z.string().trim().refine(isSafeLink, "Links must be full https:// addresses") }))
+        .max(MAX_LINKS, `At most ${MAX_LINKS} links`)
+        .optional(),
+      showPass: z.boolean().optional(),
+    })
+    .parse(await body(c));
+  const patch: Partial<typeof users.$inferInsert> = {};
+  if (b.displayName !== undefined) patch.displayName = b.displayName;
+  if (b.bio !== undefined) patch.bio = b.bio;
+  if (b.accent !== undefined) patch.accent = b.accent;
+  if (b.links !== undefined) patch.links = JSON.stringify(b.links);
+  if (b.showPass !== undefined) patch.showPass = b.showPass;
+  if (!Object.keys(patch).length) throw new HttpError("Nothing to change");
   const db = await getDb();
-  await db.update(users).set({ displayName }).where(eq(users.id, user.id));
-  return c.json({ ok: true, name: displayName });
+  await db.update(users).set(patch).where(eq(users.id, user.id));
+  return c.json({ ok: true, name: b.displayName ?? user.displayName });
 });
 
 /** What this person has paid for, newest first. Confirmed payments only: pending ones aren't receipts. */
@@ -61,7 +81,7 @@ account.get("/me/export", async (c) => {
     receiptsFor(user.id),
   ]);
   c.header("content-disposition", 'attachment; filename="nimstage-my-data.json"');
-  return c.json({ exportedAt: new Date().toISOString(), account: { id: user.id, name: user.displayName, address: user.address, role: user.role, createdAt: user.createdAt }, access: ents, following: fol, chatMessages: msgs, receipts });
+  return c.json({ exportedAt: new Date().toISOString(), account: { id: user.id, name: user.displayName, username: user.username, bio: user.bio, address: user.address, role: user.role, createdAt: user.createdAt }, access: ents, following: fol, chatMessages: msgs, receipts });
 });
 
 /**
@@ -82,8 +102,12 @@ account.delete("/me", async (c) => {
     await tx.delete(chatMessages).where(eq(chatMessages.userId, user.id));
     await tx.delete(entitlements).where(eq(entitlements.userId, user.id));
     // Frees the wallet address: signing in with it again creates a fresh, empty account.
-    await tx.update(users).set({ displayName: "Deleted account", address: `deleted-${user.id}` }).where(eq(users.id, user.id));
+    await tx
+      .update(users)
+      .set({ displayName: "Deleted account", address: `deleted-${user.id}`, username: null, avatarKey: null, bannerKey: null, bio: "", links: "[]", accent: "" })
+      .where(eq(users.id, user.id));
   });
+  for (const k of [user.avatarKey, user.bannerKey]) if (k) void deleteMedia(k);
   clearSession(c);
   return c.json({ ok: true });
 });

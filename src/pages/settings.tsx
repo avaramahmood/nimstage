@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { ChevronRight, Copy, Download } from "lucide-react";
 import { Link } from "@/components/link";
@@ -37,8 +37,7 @@ export default function SettingsPage() {
   const toast = useToast();
   const navigate = useNavigate();
   const user = me?.user;
-  const [name, setName] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"" | "name" | "out" | "delete" | "export">("");
+  const [busy, setBusy] = useState<"" | "out" | "delete" | "export">("");
   const [confirm, setConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
 
@@ -58,24 +57,7 @@ export default function SettingsPage() {
       </div>
     );
 
-  const current = name ?? user.name;
-  const changed = current.trim() !== user.name && current.trim().length >= 2;
   const demo = user.address.startsWith("DEMO");
-
-  async function saveName(e: FormEvent) {
-    e.preventDefault();
-    setBusy("name");
-    try {
-      await api("/api/me", { displayName: current.trim() }, "PATCH");
-      await refresh();
-      setName(null);
-      toast("Name updated.", "ok");
-    } catch (err) {
-      toast((err as Error).message, "error");
-    } finally {
-      setBusy("");
-    }
-  }
 
   /** Fetched with the session header (a plain link wouldn't carry it) and saved as a file. */
   async function downloadData() {
@@ -140,16 +122,18 @@ export default function SettingsPage() {
       <h1 className="display display-lg">Settings</h1>
 
       <Block title="Profile">
-        <form onSubmit={saveName} className="grid gap-3">
-          <label className="block">
-            <span className="label">Display name</span>
-            <input className="field mt-1" value={current} onChange={(e) => setName(e.target.value)} minLength={2} maxLength={30} autoComplete="nickname" />
-            <span className="mt-1 block text-sm text-muted">Shown in live chat and on your receipts.</span>
-          </label>
-          <button type="submit" className="btn btn-primary w-full" disabled={!changed || busy === "name"}>
-            {busy === "name" ? "Saving…" : "Save name"}
-          </button>
-        </form>
+        <div>
+          <p className="display display-sm break-words">{user.name}</p>
+          <p className="font-mono text-sm text-muted">{user.username ? "@" + user.username : "No username yet"}</p>
+        </div>
+        <Link href="/me/edit" className="btn btn-primary w-full">
+          Edit profile
+        </Link>
+        {user.username && (
+          <Link href={`/u/${user.username}`} className="btn btn-ghost w-full">
+            View my public profile
+          </Link>
+        )}
       </Block>
 
       <Block title="Wallet">

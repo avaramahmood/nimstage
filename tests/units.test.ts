@@ -6,6 +6,7 @@ import { buildIcs, googleCalendarUrl, icsDate, icsEscape } from "@shared/calenda
 import { coverColors, coverStyle, fmtDuration, hash } from "@shared/format";
 import { checkEnv } from "@srv/env";
 import { joinWindow } from "@shared/live";
+import { USERNAME_MAX, looksLikeAddressName, needsOnboarding, suggestUsername, usernameProblem } from "@shared/username";
 import { isMp3Upload, looksLikeMp3 } from "@srv/storage";
 import { dayOptions, joinLocalValue, nextSlot, splitLocalValue, toLocalValue } from "@shared/when";
 import { ACCENTS, MAX_LINKS, accentColor, isSafeLink, readLinks } from "@shared/artist";
@@ -211,6 +212,40 @@ test("uploads: MP3 only, judged by name/type and by what is inside", () => {
   assert.equal(looksLikeMp3(Buffer.from("<html><script>alert(1)</script></html>")), false, "HTML");
   assert.equal(looksLikeMp3(Buffer.alloc(0)), false, "empty");
   assert.equal(looksLikeMp3(Buffer.alloc(50_000, 0xff)), false, "all 0xFF is not a valid frame (reserved bits)");
+});
+test("usernames: the rules, reserved words, suggestions and the first-run gate", () => {
+  for (const ok of ["abc", "mira_vale", "a1b2c3", "x".repeat(USERNAME_MAX), "Mira_Vale"]) assert.equal(usernameProblem(ok), null, ok);
+  assert.equal(usernameProblem(""), "empty");
+  assert.equal(usernameProblem("  "), "empty");
+  assert.equal(usernameProblem("ab"), "short");
+  assert.equal(usernameProblem("x".repeat(USERNAME_MAX + 1)), "long");
+  for (const bad of ["1abc", "_abc", "9lives"]) assert.equal(usernameProblem(bad), "start", bad);
+  for (const bad of ["a b c", "a-b", "a.b", "ab@c", "émile", "a😀b"]) assert.equal(usernameProblem(bad), "chars", bad);
+  for (const word of ["admin", "Admin", "ADMIN", "studio", "settings", "nimstage", "nimiq", "support", "u", "api", "demo_fan", "demo_x"]) assert.equal(usernameProblem(word) !== null, true, word);
+  assert.equal(usernameProblem("admin1"), null, "a reserved word plus a digit is a different name");
+
+  for (const from of ["Mira Vale", "  Émile  Zola ", "42 cats", "", "???", "NQ06 XNTV HAR0", "a", "x".repeat(60), "😀😀😀"]) {
+    const s = suggestUsername(from);
+    assert.equal(usernameProblem(s), null, JSON.stringify(from) + " -> " + s);
+  }
+  assert.equal(suggestUsername("Mira Vale"), "mira_vale");
+  assert.equal(suggestUsername("Émile Zola"), "emile_zola");
+
+  assert.equal(looksLikeAddressName("NQ06 XNTV HAR0 QQQF"), true);
+  assert.equal(looksLikeAddressName("nq06 xntv"), true);
+  assert.equal(looksLikeAddressName("Nina Quinn"), false);
+  assert.equal(looksLikeAddressName("NQuinn"), false);
+
+  const withName = { user: { username: "mira" } };
+  const noName = { user: { username: null } };
+  assert.equal(needsOnboarding(null, "/"), false, "signed out: nothing to set up");
+  assert.equal(needsOnboarding({ user: null }, "/"), false);
+  assert.equal(needsOnboarding(withName, "/"), false);
+  assert.equal(needsOnboarding(noName, "/"), true, "signed in without a username: set up first");
+  assert.equal(needsOnboarding(noName, "/studio"), true);
+  assert.equal(needsOnboarding(noName, "/welcome"), false, "the setup screen itself");
+  for (const readable of ["/terms", "/privacy", "/help", "/about", "/policy", "/help/more"]) assert.equal(needsOnboarding(noName, readable), false, readable);
+  assert.equal(needsOnboarding(noName, "/termsx"), true, "only exact pages are exempt");
 });
 test("units: address helpers", () => {
   assert.equal(normalizeAddress("nq07 0000 0000"), "NQ070000" + "0000");

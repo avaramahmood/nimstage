@@ -1,4 +1,8 @@
 import { Link } from "@/components/link";
+import { useQuery } from "@tanstack/react-query";
+import { ProfileHeader } from "@/components/profile-header";
+import { api } from "@/lib/api";
+import type { ArtistLink } from "@shared/artist";
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { useWallet } from "@/lib/wallet";
@@ -6,7 +10,6 @@ import { useToast } from "@/components/toast";
 import { SignInPanel } from "@/components/auth";
 import { PassCard } from "@/components/pass-card";
 import { Skeleton } from "@/components/skeleton";
-import { shortAddress } from "@shared/units";
 import { useTitle } from "@/lib/use-now";
 
 function Row({ href, title, body }: { href: string; title: string; body: string }) {
@@ -27,6 +30,7 @@ export default function MePage() {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const user = me?.user;
+  const { data: prof } = useQuery({ queryKey: ["my-profile", user?.id], queryFn: () => api<{ bio: string; bannerKey: string | null; avatarKey: string | null; links: ArtistLink[]; joinedAt: string }>("/api/me/profile"), enabled: !!user });
 
   if (loading)
     return (
@@ -43,10 +47,20 @@ export default function MePage() {
         <div className="mt-4"><SignInPanel /></div>
       ) : (
         <>
-          <div className="card-ivory mt-4 p-5">
-            <p className="font-mono text-xs uppercase text-cream-muted">{user.role}</p>
-            <p className="display display-md break-words">{user.name}</p>
-            <p className="mt-1 break-all font-mono text-xs text-cream-muted">{user.address.startsWith("DEMO") ? "Demo account" : shortAddress(user.address)}</p>
+          <div className="mt-4 grid gap-3">
+            <ProfileHeader p={{ name: user.name, username: user.username, bio: prof?.bio, avatarKey: user.avatarKey, bannerKey: prof?.bannerKey, accent: user.accent, links: prof?.links, joinedAt: prof?.joinedAt }}>
+              <Link href="/me/edit" className="btn btn-primary btn-sm">Edit profile</Link>
+              {user.username && <Link href={`/u/${user.username}`} className="btn btn-ghost btn-sm">View public profile</Link>}
+            </ProfileHeader>
+            {prof && (!prof.avatarKey || !prof.bio) && (
+              <Link href="/me/edit" className="card flex items-center justify-between gap-3 p-4">
+                <span>
+                  <span className="block font-medium">Make it yours</span>
+                  <span className="block text-sm text-muted">Add {!prof.avatarKey ? "a picture" : ""}{!prof.avatarKey && !prof.bio ? " and " : ""}{!prof.bio ? "a bio" : ""}, pick an accent colour, add your links.</span>
+                </span>
+                <ChevronRight aria-hidden="true" size={20} className="shrink-0 text-muted" />
+              </Link>
+            )}
           </div>
           <div className="mt-4">
             <PassCard />

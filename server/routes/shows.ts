@@ -40,7 +40,7 @@ shows.post("/shows/:id/live/token", async (c) => {
   const win = joinWindow(show, host ? "host" : "viewer");
   if (win === "early") throw new HttpError("The room isn't open yet", 409);
   if (win === "ended") throw new HttpError("This show has ended", 410);
-  const token = await mintToken({ showId: show.id, identity: user.id, name: user.displayName, host, ttlSec: 3 * 60 * 60 });
+  const token = await mintToken({ showId: show.id, identity: user.id, name: user.username ?? user.displayName, host, ttlSec: 3 * 60 * 60 });
   return c.json({ token, url: process.env.LIVEKIT_URL, role: host ? "host" : "viewer" });
 });
 
@@ -64,7 +64,7 @@ shows.get("/shows/:id/chat", async (c) => {
   if (validCid) rateLimit(`live:${id}:${validCid}`, 40, 60_000);
   const [messages, reactions, here] = await Promise.all([getChat(id, c.req.query("after") ?? undefined), getReactions(id), validCid ? touchPresence(id, validCid) : hereNow(id)]);
   return c.json({
-    messages: messages.map((m) => ({ id: m.id, body: m.body, name: m.name, userId: m.userId, createdAt: m.createdAt.toISOString() })),
+    messages: messages.map((m) => ({ id: m.id, body: m.body, name: m.name, username: m.username, userId: m.userId, createdAt: m.createdAt.toISOString() })),
     reactions,
     here,
   });

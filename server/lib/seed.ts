@@ -162,9 +162,9 @@ async function seedPolls(db: DB) {
 
 async function seedAll(db: DB) {
   await db.insert(users).values([
-    { id: "demo-fan", address: "DEMO-FAN", displayName: "Demo Fan", role: "fan" },
-    { id: "demo-admin", address: "DEMO-ADMIN", displayName: "Demo Admin", role: "admin" },
-    ...DEMO.map((a) => ({ id: a.id, address: `DEMO-${a.handle.toUpperCase()}`, displayName: a.name, role: "artist" as const })),
+    { id: "demo-fan", address: "DEMO-FAN", displayName: "Demo Fan", username: "demo_fan", role: "fan" },
+    { id: "demo-admin", address: "DEMO-ADMIN", displayName: "Demo Admin", username: "demo_admin", role: "admin" },
+    ...DEMO.map((a) => ({ id: a.id, address: `DEMO-${a.handle.toUpperCase()}`, displayName: a.name, username: a.handle, role: "artist" as const })),
   ]);
 
   for (const [i, a] of DEMO.entries()) {

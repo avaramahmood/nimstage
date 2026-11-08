@@ -6,7 +6,8 @@ import { getDb, schema } from "@srv/db";
 import { HttpError, body, clientIp, rateLimit, requireUser } from "@srv/http";
 import { clearSession, getUser, mediaToken, setSession } from "@srv/session";
 import { verifyLoginSignature } from "@srv/nimiq";
-import { normalizeAddress, shortAddress } from "@shared/units";
+import { normalizeAddress } from "@shared/units";
+import { sessionUserView } from "@srv/userview";
 import { newId } from "@srv/ids";
 import { getArtistByUser, getFanPass } from "@srv/data";
 import { demoPaymentsEnabled } from "@srv/payments";
@@ -42,11 +43,11 @@ auth.post("/auth/verify", async (c) => {
   let [user] = await db.select().from(schema.users).where(eq(schema.users.address, norm)).limit(1);
   if (!user) {
     const admins = (process.env.ADMIN_ADDRESSES ?? "").split(",").map(normalizeAddress).filter(Boolean);
-    user = { id: newId(), address: norm, displayName: shortAddress(address), role: admins.includes(norm) ? "admin" : "fan", createdAt: new Date() };
-    await db.insert(schema.users).values(user);
+    // No name yet: the wallet address is not a name. The setup screen makes them choose a username.
+    [user] = await db.insert(schema.users).values({ id: newId(), address: norm, displayName: "New listener", role: admins.includes(norm) ? "admin" : "fan" }).returning();
   }
   const token = await setSession(c, user.id);
-  return c.json({ user: { id: user.id, name: user.displayName, role: user.role, address }, token });
+  return c.json({ user: sessionUserView(user), token });
 });
 
 // Persona login for demos and local development (no wallet needed). Enabled only with NIMSTAGE_DEMO=1.
@@ -59,7 +60,7 @@ auth.post("/auth/demo", async (c) => {
   const [user] = await db.select().from(schema.users).where(eq(schema.users.id, PERSONAS[persona])).limit(1);
   if (!user) throw new HttpError("Demo data not seeded", 500);
   const token = await setSession(c, user.id);
-  return c.json({ user: { id: user.id, name: user.displayName, role: user.role, address: user.address }, token });
+  return c.json({ user: sessionUserView(user), token });
 });
 
 auth.post("/auth/logout", (c) => {
@@ -73,7 +74,7 @@ auth.get("/me", async (c) => {
   if (!user) return c.json({ user: null, artist: null, config });
   const artist = await getArtistByUser(user.id);
   return c.json({
-    user: { id: user.id, name: user.displayName, role: user.role, address: user.address },
+    user: sessionUserView(user),
     artist: artist ? { id: artist.id, handle: artist.handle, name: artist.name } : null,
     config,
   });

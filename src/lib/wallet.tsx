@@ -6,7 +6,7 @@ import { checkNewBadges, primeBadges } from "./pass";
 import { useToast } from "@/components/toast";
 
 export type Me = {
-  user: { id: string; name: string; role: "fan" | "artist" | "admin"; address: string } | null;
+  user: { id: string; name: string; username: string | null; avatarKey: string | null; accent: string; role: "fan" | "artist" | "admin"; address: string; needsUsername: boolean } | null;
   artist: { id: string; handle: string; name: string } | null;
   config: { demo: boolean; demoPayments: boolean };
 };

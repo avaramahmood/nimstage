@@ -6,6 +6,9 @@ export default function HelpPage() {
       <Section title="How do I sign in?">
         <p>Open NimStage from the Mini Apps section of Nimiq Pay and tap Sign in. You sign a one-time message with your wallet. There is no password or email, and signing in never spends NIM.</p>
       </Section>
+      <Section title="Username and profile">
+        <p>The first time you sign in you choose a username, your public @handle. It is never your wallet address. You can add a picture, banner, bio, links and an accent colour there too, and change them any time under Me → Edit profile. You can change your username once a week. Artists use the same username as their artist page address.</p>
+      </Section>
       <Section title="How do I pay?">
         <p>Tap a ticket, track or membership, then confirm the payment in Nimiq Pay. Access unlocks once the payment is confirmed on the Nimiq network, which usually takes a short while. Nothing costs more than 5 NIM.</p>
       </Section>

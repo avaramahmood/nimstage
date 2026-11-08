@@ -337,7 +337,7 @@ export async function getChat(showId: string, afterIso?: string) {
   const db = await getDb();
   const since = afterIso ? new Date(afterIso) : new Date(0);
   const rows = await db
-    .select({ id: chatMessages.id, body: chatMessages.body, createdAt: chatMessages.createdAt, name: users.displayName, userId: users.id })
+    .select({ id: chatMessages.id, body: chatMessages.body, createdAt: chatMessages.createdAt, name: users.displayName, username: users.username, userId: users.id })
     .from(chatMessages)
     .innerJoin(users, eq(chatMessages.userId, users.id))
     .where(and(eq(chatMessages.showId, showId), gt(chatMessages.createdAt, since)))

@@ -41,12 +41,14 @@ studio.post("/studio/profile", async (c) => {
     await db.update(schema.artists).set({ name: b.name, bio: b.bio, genre: b.genre, payoutAddress: payout, tagline: b.tagline, accent: b.accent, links: JSON.stringify(b.links satisfies ArtistLink[]) }).where(eq(schema.artists.id, existing.id));
     return c.json({ handle: existing.handle });
   }
-  if (!b.handle) throw new HttpError("Pick a handle");
-  const [taken] = await db.select({ id: schema.artists.id }).from(schema.artists).where(eq(schema.artists.handle, b.handle)).limit(1);
-  if (taken) throw new HttpError("That handle is taken");
-  await db.insert(schema.artists).values({ id: newId(), userId: user.id, handle: b.handle, name: b.name, bio: b.bio, genre: b.genre, payoutAddress: payout, tagline: b.tagline, accent: b.accent, links: JSON.stringify(b.links) });
+  // The artist page address is the account's username: one public identity, chosen once on the setup screen.
+  const handle = user.username;
+  if (!handle) throw new HttpError("Choose your username first");
+  const [taken] = await db.select({ id: schema.artists.id }).from(schema.artists).where(eq(schema.artists.handle, handle)).limit(1);
+  if (taken) throw new HttpError("That username is already an artist page");
+  await db.insert(schema.artists).values({ id: newId(), userId: user.id, handle, name: b.name, bio: b.bio, genre: b.genre, payoutAddress: payout, tagline: b.tagline, accent: b.accent, links: JSON.stringify(b.links) });
   if (user.role === "fan") await db.update(schema.users).set({ role: "artist" }).where(eq(schema.users.id, user.id));
-  return c.json({ handle: b.handle });
+  return c.json({ handle });
 });
 
 /* ------------------------------- artwork ------------------------------- */

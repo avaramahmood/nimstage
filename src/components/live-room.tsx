@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "@/components/link";
 import { Send } from "lucide-react";
 import { api, randomHex } from "@/lib/api";
 import { useWallet } from "@/lib/wallet";
@@ -8,7 +9,7 @@ import { haptic } from "@/lib/fun";
 const EMOJI = ["🔥", "❤️", "👏", "🎸"] as const;
 const MAX_FLOATERS = 18;
 
-type Msg = { id: string; body: string; name: string; userId: string; createdAt: string };
+type Msg = { id: string; body: string; name: string; username?: string | null; userId: string; createdAt: string };
 type Poll = { messages: Msg[]; reactions: Record<string, number>; here: number };
 type Floater = { id: number; emoji: string; x: number; dx: number };
 
@@ -168,7 +169,10 @@ export function LiveRoom({ showId, canPost, live }: { showId: string; canPost: b
         {msgs.length === 0 && <li className="text-muted">No messages yet. Say hi.</li>}
         {msgs.map((m) => (
           <li key={m.id} className="py-1">
-            <span className={`font-medium ${m.userId === me?.user?.id ? "text-accent" : "text-blue"}`}>{m.name}</span> <span className="break-words">{m.body}</span>
+            <span className={`font-medium ${m.userId === me?.user?.id ? "text-accent" : "text-blue"}`}>
+              {m.username ? <Link href={`/u/${m.username}`} className="hover:underline">{m.name}</Link> : m.name}
+            </span>
+            {m.username && <span className="text-xs text-muted"> @{m.username}</span>} <span className="break-words">{m.body}</span>
           </li>
         ))}
       </ul>

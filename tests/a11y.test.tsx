@@ -97,8 +97,8 @@ async function renderPage(path: string) {
 }
 
 const matrix: { who: "fan" | "artist" | "admin" | null; pages: string[] }[] = [
-  { who: null, pages: ["/", "/discover", "/discover?q=mira", "/show/s-kofi-1", "/track/tr-miravale-2", "/artist/miravale", "/artist/kofistatic", "/library", "/studio", "/me", "/policy", "/about", "/help", "/terms", "/privacy", "/signin", "/settings", "/receipts", "/no-such-page"] },
-  { who: "fan", pages: ["/", "/show/s-kofi-1", "/track/tr-miravale-2", "/artist/miravale", "/library", "/studio", "/me", "/settings", "/receipts"] },
+  { who: null, pages: ["/", "/discover", "/discover?q=mira", "/show/s-kofi-1", "/track/tr-miravale-2", "/artist/miravale", "/artist/kofistatic", "/library", "/studio", "/me", "/policy", "/about", "/help", "/terms", "/privacy", "/signin", "/settings", "/receipts", "/welcome", "/u/demo_fan", "/u/miravale", "/u/no_such_person", "/no-such-page"] },
+  { who: "fan", pages: ["/", "/show/s-kofi-1", "/track/tr-miravale-2", "/artist/miravale", "/library", "/studio", "/me", "/me/edit", "/welcome", "/u/demo_fan", "/settings", "/receipts"] },
   { who: "artist", pages: ["/studio", "/studio/profile", "/studio/track/new", "/studio/show/new", "/studio/post/new", "/studio/poll/new", "/studio/tiers", "/artist/miravale", "/me"] },
   { who: "admin", pages: ["/admin", "/me"] },
 ];
@@ -219,5 +219,30 @@ describe("behaviour in the rendered app", () => {
     cleanup();
     const missing = await renderPage("/track/no-such-track");
     await waitFor(() => expect(missing.container.textContent).toMatch(/Nothing here|not found/i));
+  }, 30_000);
+
+  it("profile editor: username, name, bio, accent, links and privacy are all there, prefilled, with a live preview", async () => {
+    await login("fan");
+    const view = await renderPage("/me/edit");
+    await waitFor(() => expect(view.container.querySelector("input[autocomplete=username]")).not.toBeNull());
+    const username = view.container.querySelector<HTMLInputElement>("input[autocomplete=username]")!;
+    expect(username.value).toBe("demo_fan");
+    expect(view.container.querySelector('[aria-label="Preview of your profile"]')).not.toBeNull();
+    expect(view.container.querySelectorAll('[role="radio"]').length).toBe(7);
+    const text = view.container.textContent ?? "";
+    for (const part of ["Profile picture", "Banner", "Display name", "Bio", "Links", "Show my Fan Pass level"]) expect(text).toContain(part);
+    expect(text).not.toMatch(/NQ\d\d [0-9A-Z]{4}/);
+  }, 30_000);
+
+  it("public profile: shows the person, links back to their artist page for artists, and never a wallet address", async () => {
+    await login(null);
+    const view = await renderPage("/u/demo_fan");
+    await waitFor(() => expect(view.container.textContent).toContain("@demo_fan"));
+    expect(view.container.textContent).toContain("Following");
+    expect(view.container.textContent).not.toMatch(/DEMO-FAN|NQ\d\d [0-9A-Z]{4}/);
+    cleanup();
+    const artist = await renderPage("/u/miravale");
+    await waitFor(() => expect(artist.container.textContent).toContain("@miravale"));
+    expect(artist.container.textContent).toContain("Mira Vale");
   }, 30_000);
 });

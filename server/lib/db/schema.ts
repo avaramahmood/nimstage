@@ -18,7 +18,15 @@ export const users = pgTable("users", {
   id: text("id").primaryKey(),
   address: text("address").notNull().unique(),
   displayName: text("display_name").notNull(),
-  role: text("role").notNull().default("fan"), // fan | artist | admin
+  role: text("role").notNull().default("fan"),
+  username: text("username"), // the public @handle; unique ignoring case; null until the person chooses one
+  usernameChangedAt: timestamp("username_changed_at", { withTimezone: true }),
+  avatarKey: text("avatar_key"),
+  bannerKey: text("banner_key"),
+  bio: text("bio").notNull().default(""),
+  links: text("links").notNull().default("[]"), // JSON [{label,url}], https only (shared/artist.ts)
+  accent: text("accent").notNull().default(""),
+  showPass: boolean("show_pass").notNull().default(true), // show the Fan Pass level and badges on the public profile // fan | artist | admin
   createdAt: now(),
 });
 

@@ -15,6 +15,7 @@ export default function EditProfile() {
             <ArtworkEditor kind="banner" id="me" seed={artist.id} current={artist.bannerKey} label="Banner" />
           </section>
           <ProfileForm
+            username={artist.handle}
             initial={{ handle: artist.handle, name: artist.name, bio: artist.bio, genre: artist.genre, payoutAddress: artist.payoutAddress, tagline: artist.tagline, accent: artist.accent, links: readLinks(artist.links) }}
           />
         </div>

@@ -1,5 +1,8 @@
 import { Link } from "@/components/link";
+import { Navigate } from "react-router";
 import { usePathname } from "@/lib/nav";
+import { Cover } from "@/components/ui";
+import { needsOnboarding } from "@shared/username";
 import { Compass, House, Library, Mic, Search, User } from "lucide-react";
 import type { ReactNode } from "react";
 import { useWallet } from "@/lib/wallet";
@@ -35,16 +38,16 @@ function Account() {
       </Link>
     );
   }
-  const initial = (user.name.match(/[A-Za-z0-9]/)?.[0] ?? "N").toUpperCase();
   return (
-    <Link href="/me" aria-label={`Your account, ${user.name}`} className="grid h-11 w-11 place-items-center rounded-full border border-line bg-surface-2 font-[family-name:var(--font-display)] font-bold">
-      {initial}
+    <Link href="/me" aria-label={`Your account, ${user.username ? "@" + user.username : user.name}`} className="block h-11 w-11 overflow-hidden rounded-full border border-line">
+      <Cover seed={`${user.username ?? user.id}-avatar`} image={user.avatarKey} className="h-full w-full" />
     </Link>
   );
 }
 
 export function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
+  const { me } = useWallet();
   const isActive = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
 
   return (
@@ -68,7 +71,8 @@ export function Shell({ children }: { children: ReactNode }) {
         </header>
 
         <main id="main" className="min-w-0 pb-[calc(168px+env(safe-area-inset-bottom))]">
-          {children}
+          {/* Everyone needs a username: signed in without one, you go to the setup screen first. */}
+          {needsOnboarding(me, path) ? <Navigate to={`/welcome?next=${encodeURIComponent(path)}`} replace /> : children}
         </main>
       </div>
 

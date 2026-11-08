@@ -14,14 +14,14 @@ type Kind = "avatar" | "banner" | "track" | "show";
  * Upload / replace / remove one piece of artwork. The server resizes and re-encodes it, so any phone photo
  * is fine; with no image the generated art is shown. `compact` is a small thumbnail button for list rows.
  */
-export function ArtworkEditor({ kind, id, seed, current, label, compact = false }: { kind: Kind; id: string; seed: string; current?: string | null; label: string; compact?: boolean }) {
+export function ArtworkEditor({ kind, id, seed, current, label, compact = false, path: pathOverride, onChanged }: { kind: Kind; id: string; seed: string; current?: string | null; label: string; compact?: boolean; path?: string; onChanged?: () => void }) {
   const toast = useToast();
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const menu = useRef<HTMLDetailsElement>(null);
   const inputId = useId();
   const [busy, setBusy] = useState(false);
-  const path = `/api/studio/art/${kind}/${id}`;
+  const path = pathOverride ?? `/api/studio/art/${kind}/${id}`;
   const shape = kind === "avatar" ? "rounded-full" : kind === "banner" ? "rounded-2xl" : "rounded-xl";
 
   async function upload(file: File | undefined) {
@@ -35,6 +35,7 @@ export function ArtworkEditor({ kind, id, seed, current, label, compact = false 
       await api(path, form, "PUT");
       toast(`${label} updated.`, "ok");
       router.refresh();
+      onChanged?.();
     } catch (e) {
       toast((e as Error).message, "error");
     } finally {
@@ -49,6 +50,7 @@ export function ArtworkEditor({ kind, id, seed, current, label, compact = false 
       await api(path, undefined, "DELETE");
       toast(`${label} removed.`, "ok");
       router.refresh();
+      onChanged?.();
     } catch (e) {
       toast((e as Error).message, "error");
     } finally {

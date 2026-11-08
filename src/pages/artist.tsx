@@ -46,6 +46,7 @@ export default function ArtistPage() {
               {artist.name}
               {artist.verified && <BadgeCheck aria-label="Verified artist" size={28} className="text-blue" />}
             </h1>
+            <p className="font-mono text-sm text-muted">@{artist.handle}</p>
             {artist.tagline && <p className="mt-1 text-lg">{artist.tagline}</p>}
             {artist.bio && <p className="mt-2 max-w-[60ch] text-muted">{artist.bio}</p>}
             {links.length > 0 && (

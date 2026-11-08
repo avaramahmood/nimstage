@@ -5,6 +5,7 @@ import { ClosePollButton, ProfileForm, RemoveButton } from "@/components/studio-
 import { ArtworkEditor } from "@/components/artwork-editor";
 import { stateOf } from "@/components/page-state";
 import { useStudio } from "@/lib/queries";
+import { useWallet } from "@/lib/wallet";
 import { useNow, useTitle } from "@/lib/use-now";
 import { fmtWhen } from "@shared/format";
 import { formatNim } from "@shared/units";
@@ -22,6 +23,7 @@ function Stat({ label, value, hot = false }: { label: string; value: string; hot
 export default function StudioPage() {
   useTitle("Studio");
   const q = useStudio();
+  const { me } = useWallet();
   const now = useNow();
   const state = stateOf(q, { title: "Studio", body: "Sign in to sell tickets, premieres and memberships for your music." });
   if (state) return state;
@@ -32,7 +34,7 @@ export default function StudioPage() {
       <div className="wrap max-w-3xl pt-6 md:pt-8">
         <h1 className="display display-lg">Become an artist</h1>
         <p className="mb-5 mt-2 text-muted">Create your profile and start earning NIM. Fans pay your wallet directly, and there are no platform fees.</p>
-        <ProfileForm />
+        <ProfileForm username={me?.user?.username} />
       </div>
     );
   }
