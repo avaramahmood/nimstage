@@ -52,6 +52,7 @@ export async function parseAddress(input: string): Promise<string | null> {
 }
 
 export type ChainTx = {
+  from: string;
   to: string;
   valueLuna: number;
   memo: string;
@@ -74,6 +75,7 @@ function parseTx(t: Record<string, unknown>): ChainTx | null {
   if (typeof t.to !== "string") return null;
   const hex = typeof t.recipientData === "string" ? t.recipientData : "";
   return {
+    from: typeof t.from === "string" ? t.from : "",
     to: t.to,
     valueLuna: Number(t.value ?? 0),
     memo: hex ? Buffer.from(hex, "hex").toString("utf8") : "",
@@ -134,3 +136,26 @@ export async function fetchAddressTxs(address: string, max = 40): Promise<{ ok: 
 }
 
 export const sameAddress = (a: string, b: string) => normalizeAddress(a) === normalizeAddress(b);
+
+/** Where the one-luna "I own this address" transaction is sent. Only dust moves, and the sender is what matters. */
+export const BURN_ADDRESS = "NQ07 0000 0000 0000 0000 0000 0000 0000 0000";
+export function proofAddress(env: NodeJS.ProcessEnv = process.env): string {
+  const firstAdmin = (env.ADMIN_ADDRESSES ?? "").split(",").map((a) => a.trim()).find(Boolean);
+  return env.NIMSTAGE_PROOF_ADDRESS?.trim() || firstAdmin || BURN_ADDRESS;
+}
+
+export type ProofResult = { status: "ok" } | { status: "pending"; reason?: string };
+
+/**
+ * Has `address` itself sent a transaction to `to` with this exact memo? A transaction's sender is fixed by its
+ * signature, so this proves the person holds the address's key without any message-signing support in their wallet.
+ */
+export async function findAddressProof(address: string, to: string, memo: string): Promise<ProofResult> {
+  const found = await fetchAddressTxs(address);
+  if (!found.ok) return { status: "pending", reason: found.reason };
+  const matches = found.txs.filter((t) => t.memo === memo && sameAddress(t.from, address) && sameAddress(t.to, to));
+  if (!matches.length) return { status: "pending" };
+  // Any one good transaction is enough; a failed or still-unconfirmed twin must not hide it.
+  if (matches.some((t) => t.executed && t.valueLuna >= 1 && t.confirmations >= 1)) return { status: "ok" };
+  return { status: "pending", reason: matches.some((t) => t.executed && t.valueLuna >= 1) ? "waiting_for_confirmation" : "failed_on_chain" };
+}

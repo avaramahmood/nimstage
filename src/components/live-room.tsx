@@ -14,12 +14,16 @@ type Msg = { id: string; body: string; name: string; username?: string | null; u
 type Poll = { messages: Msg[]; reactions: Record<string, number>; here: number };
 type Floater = { id: number; emoji: string; x: number; dx: number };
 
+export const REACTIONS = EMOJI;
+export type { Msg, Floater };
+
 /**
- * The live room: reactions that float up, who's here, and chat. One poll feeds all of it
+ * The live room's state: reactions that float up, who's here, and chat. One poll feeds all of it
  * (chat + reaction totals + presence), it pauses while the tab is hidden, and the floating
  * emoji animate transform/opacity only, capped so a burst of taps can't pile up DOM.
+ * It lives in a hook so the same room drives the card on the page and the full-screen view.
  */
-export function LiveRoom({ showId, canPost, live }: { showId: string; canPost: boolean; live: boolean }) {
+export function useLiveRoom(showId: string, canPost: boolean, live: boolean) {
   const { me } = useWallet();
   const toast = useToast();
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -130,6 +134,14 @@ export function LiveRoom({ showId, canPost, live }: { showId: string; canPost: b
     }
   }
 
+  return { me, msgs, text, setText, totals, here, floaters, setFloaters, popKey, box, react, send, canPost, live };
+}
+
+export type LiveRoomState = ReturnType<typeof useLiveRoom>;
+
+/** The card on the show page: reactions, who's here, and chat. */
+export function LiveRoom({ room }: { room: LiveRoomState }) {
+  const { me, msgs, text, setText, totals, here, floaters, setFloaters, popKey, box, react, send, canPost, live } = room;
   return (
     <section aria-label="Live room" className="card overflow-hidden">
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">

@@ -3,7 +3,8 @@ import { Check, Ticket } from "lucide-react";
 import { Sheet } from "@/components/sheet";
 import { SignInPanel } from "@/components/auth";
 import { useToast } from "@/components/toast";
-import { useWallet, type PayRequest, type PayStage } from "@/lib/wallet";
+import { ManualPayPanel } from "@/components/manual";
+import { ManualPay, useWallet, type PayRequest, type PayStage } from "@/lib/wallet";
 import { formatNim, MAX_NIM, nimToLuna, TIP_PRESETS_NIM } from "@shared/units";
 import { celebrate } from "@/lib/fun";
 
@@ -53,9 +54,10 @@ export function PaySheet({
   label: string;
   doneText: string;
 }) {
-  const { me, pay } = useWallet();
+  const { me, pay, paid } = useWallet();
   const toast = useToast();
   const [stage, setStage] = useState<PayStage | null>(null);
+  const [manual, setManual] = useState<ManualPay["intent"] | null>(null);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,7 +69,8 @@ export function PaySheet({
       celebrate();
       toast(doneText, "ok");
     } catch (e) {
-      setError((e as Error).message);
+      if (e instanceof ManualPay) setManual(e.intent);
+      else setError((e as Error).message);
     } finally {
       setStage(null);
     }
@@ -93,6 +96,16 @@ export function PaySheet({
             <p className="text-muted">Sign in to buy. Your wallet confirms every payment, and NimStage never holds your funds.</p>
             <SignInPanel compact />
           </>
+        ) : manual ? (
+          <ManualPayPanel
+            intent={manual}
+            onPaid={() => {
+              paid();
+              setDone(true);
+              celebrate();
+              toast(doneText, "ok");
+            }}
+          />
         ) : (
           <>
             <button type="button" className="btn btn-primary w-full" disabled={!!stage} onClick={go}>
@@ -190,9 +203,10 @@ export function TipButton({ target, artistName, className = "btn btn-ghost" }: {
 }
 
 function TipPay({ target, amount, onClose }: { open: boolean; onClose: () => void; target: string; amount: number }) {
-  const { me, pay } = useWallet();
+  const { me, pay, paid } = useWallet();
   const toast = useToast();
   const [stage, setStage] = useState<PayStage | null>(null);
+  const [manual, setManual] = useState<ManualPay["intent"] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   if (!me?.user) return <SignInPanel compact />;
@@ -205,10 +219,25 @@ function TipPay({ target, amount, onClose }: { open: boolean; onClose: () => voi
       toast("Tip sent. Thank you!", "ok");
       onClose();
     } catch (e) {
-      setError((e as Error).message);
+      if (e instanceof ManualPay) setManual(e.intent);
+      else setError((e as Error).message);
     } finally {
       setStage(null);
     }
+  }
+
+  if (manual) {
+    return (
+      <ManualPayPanel
+        intent={manual}
+        onPaid={() => {
+          paid();
+          celebrate(18);
+          toast("Tip sent. Thank you!", "ok");
+          onClose();
+        }}
+      />
+    );
   }
 
   return (

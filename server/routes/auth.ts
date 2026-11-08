@@ -1,11 +1,11 @@
 import { Hono } from "hono";
 import { randomBytes } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@srv/db";
 import { HttpError, body, clientIp, rateLimit, requireUser } from "@srv/http";
 import { clearSession, getUser, mediaToken, setSession } from "@srv/session";
-import { verifyLoginSignature } from "@srv/nimiq";
+import { findAddressProof, parseAddress, proofAddress, verifyLoginSignature } from "@srv/nimiq";
 import { normalizeAddress } from "@shared/units";
 import { sessionUserView } from "@srv/userview";
 import { newId } from "@srv/ids";
@@ -24,6 +24,20 @@ auth.post("/auth/challenge", async (c) => {
   return c.json({ nonce, message });
 });
 
+const PROOF_PREFIX = "address:";
+
+/** The account for a wallet address, created on first sight. Only call this once ownership of the address is proven. */
+async function userForAddress(norm: string) {
+  const db = await getDb();
+  let [user] = await db.select().from(schema.users).where(eq(schema.users.address, norm)).limit(1);
+  if (!user) {
+    const admins = (process.env.ADMIN_ADDRESSES ?? "").split(",").map(normalizeAddress).filter(Boolean);
+    // No name yet: the wallet address is not a name. The setup screen makes them choose a username.
+    [user] = await db.insert(schema.users).values({ id: newId(), address: norm, displayName: "New listener", role: admins.includes(norm) ? "admin" : "fan" }).returning();
+  }
+  return user;
+}
+
 const Verify = z.object({ nonce: z.string().length(32), publicKey: z.string().regex(/^[0-9a-fA-F]{64}$/), signature: z.string().regex(/^[0-9a-fA-F]{128}$/) });
 
 auth.post("/auth/verify", async (c) => {
@@ -36,18 +50,49 @@ auth.post("/auth/verify", async (c) => {
   // Single use, consumed before verification so a failed attempt can't be replayed either.
   await db.update(schema.authChallenges).set({ used: true }).where(eq(schema.authChallenges.nonce, b.nonce));
 
+  // Address-proof challenges (below) are a different flow: they can never be redeemed with a signature.
+  if (challenge.message.startsWith(PROOF_PREFIX)) throw new HttpError("Login expired, try again", 400);
   const address = await verifyLoginSignature(challenge.message, b.publicKey, b.signature);
   if (!address) throw new HttpError("Signature could not be verified", 401);
 
-  const norm = normalizeAddress(address);
-  let [user] = await db.select().from(schema.users).where(eq(schema.users.address, norm)).limit(1);
-  if (!user) {
-    const admins = (process.env.ADMIN_ADDRESSES ?? "").split(",").map(normalizeAddress).filter(Boolean);
-    // No name yet: the wallet address is not a name. The setup screen makes them choose a username.
-    [user] = await db.insert(schema.users).values({ id: newId(), address: norm, displayName: "New listener", role: admins.includes(norm) ? "admin" : "fan" }).returning();
-  }
+  const user = await userForAddress(normalizeAddress(address));
   const token = await setSession(c, user.id);
   return c.json({ user: sessionUserView(user), token });
+});
+
+/*
+  Sign-in from a normal browser (no Nimiq Pay). Paste your address; to prove it is yours, send one luna
+  (0.00001 NIM) from it with a code in the message. A transaction's sender is fixed by its signature, so
+  seeing it on mainnet proves you hold the key. Nothing else is ever asked of the wallet.
+*/
+const PROOF_MINUTES = 20;
+
+auth.post("/auth/address/start", async (c) => {
+  rateLimit(`addr-start:${clientIp(c)}`, 12, 60_000);
+  const { address } = z.object({ address: z.string().min(20).max(60) }).parse(await body(c));
+  const friendly = await parseAddress(address);
+  if (!friendly) throw new HttpError("That doesn't look like a Nimiq address. It starts with NQ and has 9 groups of 4 characters.", 400);
+  const nonce = randomBytes(16).toString("hex");
+  const db = await getDb();
+  await db.insert(schema.authChallenges).values({ nonce, message: PROOF_PREFIX + normalizeAddress(friendly), expiresAt: new Date(Date.now() + PROOF_MINUTES * 60_000) });
+  return c.json({ code: nonce, address: friendly, to: proofAddress(), amountLuna: 1, memo: `NSL:${nonce}`, minutes: PROOF_MINUTES });
+});
+
+auth.post("/auth/address/check", async (c) => {
+  rateLimit(`addr-check:${clientIp(c)}`, 90, 60_000);
+  const { code } = z.object({ code: z.string().length(32) }).parse(await body(c));
+  const db = await getDb();
+  const [challenge] = await db.select().from(schema.authChallenges).where(eq(schema.authChallenges.nonce, code)).limit(1);
+  if (!challenge || !challenge.message.startsWith(PROOF_PREFIX) || challenge.used || challenge.expiresAt < new Date()) throw new HttpError("This code expired. Start again to get a new one.", 400);
+  const address = challenge.message.slice(PROOF_PREFIX.length);
+  const proof = await findAddressProof(address, proofAddress(), `NSL:${code}`);
+  if (proof.status !== "ok") return c.json({ status: "pending", reason: proof.reason });
+  // Single use: whoever flips the flag first gets the session.
+  const claimed = await db.update(schema.authChallenges).set({ used: true }).where(and(eq(schema.authChallenges.nonce, code), eq(schema.authChallenges.used, false))).returning({ nonce: schema.authChallenges.nonce });
+  if (!claimed.length) throw new HttpError("This code was already used.", 400);
+  const user = await userForAddress(address);
+  const token = await setSession(c, user.id);
+  return c.json({ status: "ok", user: sessionUserView(user), token });
 });
 
 // Persona login for demos and local development (no wallet needed). Enabled only with NIMSTAGE_DEMO=1.

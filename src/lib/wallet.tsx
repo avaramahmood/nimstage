@@ -12,6 +12,12 @@ export type Me = {
 };
 
 export type PayRequest = { kind: "ticket" | "tip" | "membership" | "track"; refId?: string; amountLuna?: number };
+/** Thrown by pay() outside Nimiq Pay: the payment is made by hand from any wallet, and this carries what to send. */
+export class ManualPay extends Error {
+  constructor(public intent: { id: string; amountLuna: number; recipient: string; memo: string }) {
+    super("Pay from your wallet");
+  }
+}
 export type PayStage = "preparing" | "wallet" | "verifying";
 
 type Ctx = {
@@ -23,6 +29,10 @@ type Ctx = {
   demoLogin: (persona: "fan" | "artist" | "admin") => Promise<void>;
   logout: () => Promise<void>;
   pay: (req: PayRequest, onStage?: (s: PayStage) => void) => Promise<void>;
+  /** After a payment confirmed outside pay() (a manual payment): refresh pages and check for new badges. */
+  paid: () => void;
+  /** Take a session token from a sign-in that happened elsewhere (the address-proof flow). */
+  acceptToken: (token: string) => Promise<void>;
   refresh: () => Promise<void>;
 };
 
@@ -83,7 +93,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const connect = useCallback(async () => {
     const nimiq = await provider();
-    if (!nimiq) throw new Error("Open NimStage inside Nimiq Pay to sign in with your wallet.");
+    if (!nimiq) throw new Error("Open NimStage inside Nimiq Pay, or paste your address to sign in from this browser.");
     try {
       await nimiq.listAccounts(); // asks the user to share their address
       const { nonce, message } = await api<{ nonce: string; message: string }>("/api/auth/challenge", {});
@@ -134,7 +144,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         await sleep(700);
         txHash = `demo-${randomHex(8)}`;
       } else {
-        throw new Error("Open NimStage inside Nimiq Pay to pay with NIM.");
+        // A normal browser: no wallet to call. The buyer sends the payment by hand and the server finds it by its memo.
+        throw new ManualPay(intent);
       }
 
       onStage?.("verifying");
@@ -157,6 +168,27 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     [inNimiqPay, me, provider, router, toast],
   );
 
-  const value = useMemo(() => ({ me, loading, inNimiqPay, connect, demoLogin, logout, pay, refresh }), [me, loading, inNimiqPay, connect, demoLogin, logout, pay, refresh]);
+  const acceptToken = useCallback(
+    async (token: string) => {
+      setToken(token);
+      await refresh();
+      router.refresh();
+    },
+    [refresh, router],
+  );
+
+  const paid = useCallback(() => {
+    router.refresh();
+    if (me?.user) {
+      void checkNewBadges(me.user.id).then((names) => {
+        if (names.length) toast(`Badge unlocked: ${names.join(", ")}`, "ok");
+      });
+    }
+  }, [me, router, toast]);
+
+  const value = useMemo(
+    () => ({ me, loading, inNimiqPay, connect, demoLogin, logout, pay, paid, acceptToken, refresh }),
+    [me, loading, inNimiqPay, connect, demoLogin, logout, pay, paid, acceptToken, refresh],
+  );
   return <WalletCtx.Provider value={value}>{children}</WalletCtx.Provider>;
 }

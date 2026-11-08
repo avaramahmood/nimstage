@@ -96,6 +96,21 @@ export async function confirmIntent(user: SessionUser, intentId: string, txHash:
   return settle(intent, txHash);
 }
 
+/** For a payment made by hand from any wallet: find it by its memo on the artist's address, then report where the intent stands. */
+export async function checkIntent(user: SessionUser, intentId: string): Promise<ConfirmResult> {
+  const db = await getDb();
+  const load = async () => (await db.select().from(paymentIntents).where(and(eq(paymentIntents.id, intentId), eq(paymentIntents.userId, user.id))).limit(1))[0];
+  const report = (i: Intent): ConfirmResult | null =>
+    i.status === "confirmed" ? { status: "confirmed" } : i.status === "failed" ? { status: "failed", reason: i.failReason ?? "Payment could not be verified." } : null;
+  const intent = await load();
+  if (!intent) throw new PaymentError("Payment not found", 404);
+  const done = report(intent);
+  if (done) return done;
+  await reconcilePending({ userId: user.id }, 2500);
+  const after = await load();
+  return (after && report(after)) ?? { status: "pending" };
+}
+
 /**
  * The one set of rules that decides whether a transaction pays for an intent. `known` is a transaction the
  * caller already fetched (when recovering by memo); otherwise it is looked up by hash.

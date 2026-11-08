@@ -27,6 +27,7 @@
   --r-card: 20px;
   --r-field: 14px;
   --sidebar: 264px;
+  --rail: 88px;
   color-scheme: dark;
 }
 
@@ -48,17 +49,10 @@
 }
 
 /*
-  Phone-first: NimStage is a mini app inside Nimiq Pay's WebView, so the layout is always one phone-width
-  column (centred on a wide screen). The responsive breakpoints are pushed out of reach so the sm:/md:/lg:
-  variants left in components can never switch the app into a desktop layout.
+  Phone-first, but not phone-only: a phone is one column with a bottom tab bar; from tablet width, and on a wide
+  short screen (a phone on its side), the tab bar becomes a rail down the left and the page uses the room.
+  Tailwind's standard breakpoints apply (sm 640, md 768, lg 1024, xl 1280).
 */
-@theme {
-  --breakpoint-sm: 3000px;
-  --breakpoint-md: 3000px;
-  --breakpoint-lg: 3000px;
-  --breakpoint-xl: 3000px;
-  --breakpoint-2xl: 3000px;
-}
 
 /* Fonts come from Fontsource (imported in main.tsx). `static` always emits the variables. */
 @theme static {
@@ -145,11 +139,85 @@ body {
     margin-inline: auto;
     padding-inline: 16px;
   }
-  /* the app column: the whole app lives in this on any screen width */
+  /* the app column: one phone-width column on a phone, the whole window (beside the rail) on anything wider */
   .app-col {
     width: 100%;
     max-width: 520px;
     margin-inline: auto;
+  }
+
+  /* the tab bar: along the bottom on a phone... */
+  .app-nav {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    z-index: 40;
+    width: 100%;
+    max-width: 520px;
+    transform: translateX(-50%);
+    border-inline: 1px solid var(--line);
+    border-top: 1px solid var(--line);
+    background: var(--bg);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .mini-player {
+    position: fixed;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    left: 50%;
+    z-index: 40;
+    width: calc(100% - 24px);
+    max-width: 496px;
+    transform: translateX(-50%);
+  }
+
+  /* ...and a rail down the left on tablets, laptops and phones turned on their side */
+  @media (min-width: 768px), (orientation: landscape) and (max-height: 520px) {
+    .app-col {
+      max-width: none;
+      margin-left: var(--rail);
+      border-inline: 0 !important;
+      width: auto;
+    }
+    .app-nav {
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: var(--rail);
+      max-width: none;
+      transform: none;
+      border-inline: 0;
+      border-top: 0;
+      border-right: 1px solid var(--line);
+      padding: 12px 0;
+      overflow-y: auto;
+    }
+    .app-nav-items {
+      display: flex !important;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .mini-player {
+      bottom: 16px;
+      left: calc(50% + var(--rail) / 2);
+    }
+    .app-main {
+      padding-bottom: 120px !important;
+    }
+    .wrap {
+      max-width: 720px;
+      padding-inline: 24px;
+    }
+  }
+  @media (min-width: 1024px) {
+    .wrap {
+      max-width: 1040px;
+      padding-inline: 32px;
+    }
+  }
+  @media (min-width: 1280px) {
+    .wrap {
+      max-width: 1180px;
+    }
   }
 
   /* Horizontal scroller on phones, grid from tablet up. */
@@ -169,6 +237,16 @@ body {
   .rail > * {
     scroll-snap-align: start;
     flex: none;
+  }
+  /* from tablet up the scroller becomes a grid of posters */
+  @media (min-width: 768px) {
+    .rail {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      overflow: visible;
+      margin-inline: 0;
+      padding-inline: 0;
+    }
   }
 
   /* ---------- buttons ---------- */

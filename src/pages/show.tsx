@@ -10,7 +10,7 @@ import { Ticket3D as FlatTicket } from "@/components/depth";
 import { Ticket3D } from "@/stage/stage";
 import { TrackRow } from "@/components/player-ui";
 import { ReportButton } from "@/components/social";
-import { LiveRoom } from "@/components/live-room";
+import { LiveRoom, useLiveRoom } from "@/components/live-room";
 import { CalendarButtons, ShareButton } from "@/components/share-actions";
 import { stateOf } from "@/components/page-state";
 import { useShow } from "@/lib/queries";
@@ -28,9 +28,12 @@ export default function ShowPage() {
   const now = useNow();
   useTitle(q.data?.show.title ?? "Show");
 
+  // The room's chat and reactions run from here so the page card and the full-screen view share one poll.
+  const room = useLiveRoom(id, q.data?.canChat ?? false, q.data ? showState(q.data.show, now) === "live" : false);
+
   const state = stateOf(q);
   if (state) return state;
-  const { show, track, access, own, canChat } = q.data!;
+  const { show, track, access, own } = q.data!;
   const st = showState(show, now);
   const free = show.priceLuna <= 0;
   const price = formatNim(show.priceLuna);
@@ -108,7 +111,7 @@ export default function ShowPage() {
             <section aria-label="Live video">
               <h2 className="label mb-2">{own ? "Your stream" : "Watch"}</h2>
               <Suspense fallback={<div className="aspect-video w-full rounded-[20px] bg-surface" />}>
-                <LiveVideo showId={show.id} host={own} open={own || joinWindow(show, "viewer", now) === "ok"} />
+                <LiveVideo showId={show.id} host={own} open={own || joinWindow(show, "viewer", now) === "ok"} room={room} artist={{ name: show.artist.name, handle: show.artist.handle, avatarKey: show.artist.avatarKey }} title={show.title} />
               </Suspense>
             </section>
           )}
@@ -128,7 +131,7 @@ export default function ShowPage() {
             <TipButton target={show.id} artistName={show.artist.name} className="btn btn-blue btn-sm" />
             <ReportButton targetKind="show" targetId={show.id} />
           </div>
-          <LiveRoom showId={show.id} canPost={canChat} live={st === "live"} />
+          <LiveRoom room={room} />
         </aside>
       </div>
     </article>

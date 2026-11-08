@@ -82,7 +82,7 @@ export function MiniPlayer() {
   const p = usePlayer();
   if (!p.track) return null;
   return (
-    <div className="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] left-1/2 z-40 flex w-[calc(100%-24px)] max-w-[496px] -translate-x-1/2 items-center gap-2 rounded-[24px] border border-line bg-surface-2 py-2 pl-3 pr-2 shadow-[0_20px_50px_-20px_rgb(0_0_0/0.8)]">
+    <div className="mini-player flex items-center gap-2 rounded-[24px] border border-line bg-surface-2 py-2 pl-3 pr-2 shadow-[0_20px_50px_-20px_rgb(0_0_0/0.8)]">
       <button type="button" onClick={() => p.setOpen(true)} className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl text-left" aria-label={`Open player, ${p.track.title} by ${p.track.artist}`}>
         <Cover seed={p.track.seed} image={p.track.cover} className="h-12 w-12 shrink-0 rounded-xl" />
         <span className="min-w-0">

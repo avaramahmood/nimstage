@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { body, rateLimit, requireUser } from "@srv/http";
-import { confirmIntent, createIntent } from "@srv/payments";
+import { checkIntent, confirmIntent, createIntent } from "@srv/payments";
 
 export const payments = new Hono();
 
@@ -25,4 +25,14 @@ payments.post("/payments/confirm", async (c) => {
   rateLimit(`confirm:${user.id}`, 60, 60_000);
   const { intentId, txHash } = Confirm.parse(await body(c));
   return c.json(await confirmIntent(user, intentId, txHash));
+});
+
+// For a payment made by hand from any wallet: look for the transaction by its memo and settle it.
+const Check = z.object({ intentId: z.string().min(6).max(32) });
+
+payments.post("/payments/check", async (c) => {
+  const user = await requireUser(c);
+  rateLimit(`check:${user.id}`, 40, 60_000);
+  const { intentId } = Check.parse(await body(c));
+  return c.json(await checkIntent(user, intentId));
 });

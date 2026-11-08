@@ -55,7 +55,7 @@ export function Shell({ children }: { children: ReactNode }) {
         Skip to content
       </a>
 
-      {/* One phone-width column, centred on a wide screen, with hairline edges so it reads as an app. */}
+      {/* A phone-width column on a phone; beside the left rail on anything wider. */}
       <div className="app-col min-h-dvh border-x border-line bg-bg">
         <header className="sticky top-0 z-30 border-b border-line bg-bg/95 pt-[env(safe-area-inset-top)]">
           <div className="flex h-14 items-center justify-between gap-3 px-4">
@@ -69,7 +69,7 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main id="main" className="min-w-0 pb-[calc(168px+env(safe-area-inset-bottom))]">
+        <main id="main" className="app-main min-w-0 pb-[calc(168px+env(safe-area-inset-bottom))]">
           {/* Everyone needs a username: signed in without one, you go to the setup screen first. */}
           {needsOnboarding(me, path) ? <Navigate to={`/welcome?next=${encodeURIComponent(path)}`} replace /> : children}
         </main>
@@ -78,8 +78,8 @@ export function Shell({ children }: { children: ReactNode }) {
       <MiniPlayer />
       <PlayerSheet />
 
-      <nav aria-label="Main" className="fixed bottom-0 left-1/2 z-40 w-full max-w-[520px] -translate-x-1/2 border-x border-t border-line bg-bg/95 pb-[env(safe-area-inset-bottom)]">
-        <div className="grid grid-cols-5">
+      <nav aria-label="Main" className="app-nav">
+        <div className="app-nav-items grid grid-cols-5">
           {TABS.map(({ href, label, Icon }) => (
             <Link
               key={href}

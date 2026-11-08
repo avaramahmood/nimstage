@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useWallet } from "@/lib/wallet";
 import { useToast } from "@/components/toast";
+import { AddressLogin } from "@/components/manual";
 
-/** Wallet sign-in. Inside Nimiq Pay: sign a challenge. In a plain browser: demo personas (if enabled). */
+/** Wallet sign-in. Inside Nimiq Pay: sign a challenge. In a plain browser: paste your address and prove it on-chain (plus demo personas, if enabled). */
 export function SignInPanel({ compact = false }: { compact?: boolean }) {
   const { me, inNimiqPay, connect, demoLogin } = useWallet();
   const toast = useToast();
@@ -26,9 +27,7 @@ export function SignInPanel({ compact = false }: { compact?: boolean }) {
           {busy ? "Waiting for Nimiq Pay…" : "Sign in with Nimiq Pay"}
         </button>
       ) : (
-        <p className="text-muted">
-          NimStage runs inside <strong className="text-ink">Nimiq Pay</strong>. Open it there to sign in with your wallet and pay with NIM.
-        </p>
+        <AddressLogin />
       )}
       {me?.config.demo && (
         <div className={`rounded-2xl border border-dashed border-white/20 p-3 ${compact ? "" : "mt-1"}`}>

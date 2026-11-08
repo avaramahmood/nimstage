@@ -93,7 +93,7 @@ export default function MePage() {
           </button>
         </>
       )}
-      <p className="mt-8 text-sm text-muted">{inNimiqPay ? "Running inside Nimiq Pay." : "Open NimStage from Nimiq Pay's Mini Apps to pay with NIM."}</p>
+      <p className="mt-8 text-sm text-muted">{inNimiqPay ? "Running inside Nimiq Pay." : "You are in a browser: payments are sent by hand from any Nimiq wallet, and NimStage finds them on the Nimiq network."}</p>
     </div>
   );
 }

@@ -32,7 +32,7 @@ export default function SignInPage() {
           <KeyRound aria-hidden="true" size={22} className="mt-0.5 shrink-0 text-accent" />
           <p>
             <strong className="block">You sign a one-time message</strong>
-            <span className="text-muted">Nimiq Pay asks you to sign a short note. That proves the wallet is yours.</span>
+            <span className="text-muted">In Nimiq Pay you sign a short note. In a browser you send one tiny transaction from your address. Either proves the wallet is yours.</span>
           </p>
         </li>
         <li className="flex gap-3">
