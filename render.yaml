@@ -1,0 +1,45 @@
+# Render Blueprint: New -> Blueprint -> pick this repo. Secrets marked sync:false are entered in the
+# dashboard, never committed. See DEPLOY.md for where each value comes from.
+services:
+  - type: web
+    name: nimstage
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "24"
+      - key: NIMSTAGE_DEMO
+        value: "0"
+      - key: NIMSTAGE_DEMO_PAYMENTS
+        value: "0"
+      - key: NIMSTAGE_SEED
+        value: "1"
+      - key: S3_REGION
+        value: auto
+      - key: SESSION_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: NIMIQ_RPC_URL
+        sync: false
+      - key: ADMIN_ADDRESSES
+        sync: false
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false

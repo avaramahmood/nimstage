@@ -1,0 +1,208 @@
+import { Hono } from "hono";
+import { and, eq } from "drizzle-orm";
+import { z } from "zod";
+import { getDb, schema } from "@srv/db";
+import { HttpError, body, rateLimit, requireArtist, requireUser } from "@srv/http";
+import { getArtistByUser, getTiers, getTrack } from "@srv/data";
+import { parseAddress } from "@srv/nimiq";
+import { ALLOWED_AUDIO, MAX_UPLOAD_BYTES, saveMedia } from "@srv/storage";
+import { MAX_NIM, nimToLuna } from "@shared/units";
+import { newId } from "@srv/ids";
+
+export const studio = new Hono();
+
+/* ------------------------------- profile ------------------------------- */
+const Profile = z.object({
+  handle: z.string().toLowerCase().regex(/^[a-z0-9_]{3,24}$/, "Handle: 3–24 letters, numbers or _").optional(),
+  name: z.string().trim().min(2).max(60),
+  bio: z.string().trim().max(600).default(""),
+  genre: z.string().trim().min(2).max(30).default("Indie"),
+  payoutAddress: z.string().trim().min(10, "Enter your Nimiq payout address (starts with NQ)").max(60, "That address is too long"),
+  ownsRights: z.literal(true, { error: "Confirm you own the music you upload" }),
+});
+
+studio.post("/studio/profile", async (c) => {
+  const user = await requireUser(c);
+  const b = Profile.parse(await body(c));
+  const payout = await parseAddress(b.payoutAddress);
+  if (!payout) throw new HttpError("That payout address isn't a valid Nimiq address");
+  const db = await getDb();
+  const existing = await getArtistByUser(user.id);
+
+  if (existing) {
+    await db.update(schema.artists).set({ name: b.name, bio: b.bio, genre: b.genre, payoutAddress: payout }).where(eq(schema.artists.id, existing.id));
+    return c.json({ handle: existing.handle });
+  }
+  if (!b.handle) throw new HttpError("Pick a handle");
+  const [taken] = await db.select({ id: schema.artists.id }).from(schema.artists).where(eq(schema.artists.handle, b.handle)).limit(1);
+  if (taken) throw new HttpError("That handle is taken");
+  await db.insert(schema.artists).values({ id: newId(), userId: user.id, handle: b.handle, name: b.name, bio: b.bio, genre: b.genre, payoutAddress: payout });
+  if (user.role === "fan") await db.update(schema.users).set({ role: "artist" }).where(eq(schema.users.id, user.id));
+  return c.json({ handle: b.handle });
+});
+
+/* ------------------------------- tracks ------------------------------- */
+const TrackFields = z.object({
+  title: z.string().trim().min(1).max(80),
+  priceNim: z.coerce.number().min(0).max(MAX_NIM).default(0),
+  durationSec: z.coerce.number().int().min(5).max(7200),
+  previewSec: z.coerce.number().int().min(10).max(60).default(30),
+  ownsRights: z.literal("true", { error: "Confirm you own this music" }),
+});
+
+studio.post("/studio/tracks", async (c) => {
+  const { artist } = await requireArtist(c);
+  rateLimit(`upload:${artist.id}`, 10, 10 * 60_000);
+  let form: FormData;
+  try {
+    form = await c.req.formData();
+  } catch {
+    throw new HttpError("Invalid upload");
+  }
+  const f = TrackFields.parse(Object.fromEntries([...form.entries()].filter(([, v]) => typeof v === "string")));
+  const file = form.get("file");
+  if (!(file instanceof File) || file.size === 0) throw new HttpError("Choose an audio file");
+  if (file.size > MAX_UPLOAD_BYTES) throw new HttpError("Audio must be under 40 MB");
+  const ext = ALLOWED_AUDIO.get(file.type);
+  if (!ext) throw new HttpError("Use MP3, WAV, OGG, M4A or AAC");
+
+  const key = await saveMedia(Buffer.from(await file.arrayBuffer()), ext);
+  const id = newId();
+  const db = await getDb();
+  await db.insert(schema.tracks).values({
+    id,
+    artistId: artist.id,
+    title: f.title,
+    durationSec: f.durationSec,
+    priceLuna: nimToLuna(f.priceNim),
+    previewSec: Math.min(f.previewSec, f.durationSec),
+    mediaKey: key,
+    mime: file.type === "audio/mp3" ? "audio/mpeg" : file.type,
+  });
+  return c.json({ id });
+});
+
+/* ------------------------------- shows ------------------------------- */
+const ShowBody = z.object({
+  title: z.string().trim().min(2).max(80),
+  description: z.string().trim().max(600).default(""),
+  startsAt: z.string().datetime(),
+  durationMin: z.number().int().min(5).max(24 * 60 * 7),
+  priceNim: z.number().min(0).max(MAX_NIM),
+  kind: z.enum(["premiere", "live"]).default("premiere"),
+  // Audio premieres play one of the artist's tracks; live video shows don't use a track.
+  trackId: z.string().max(64).optional(),
+});
+
+studio.post("/studio/shows", async (c) => {
+  const { artist } = await requireArtist(c);
+  const b = ShowBody.parse(await body(c));
+  const track = b.kind === "premiere" ? await getTrack(b.trackId ?? "") : null;
+  if (b.kind === "premiere" && (!track || track.artistId !== artist.id || track.status !== "published")) throw new HttpError("Pick one of your own tracks as the show audio");
+  const id = newId();
+  const db = await getDb();
+  await db.insert(schema.shows).values({
+    id,
+    artistId: artist.id,
+    title: b.title,
+    description: b.description,
+    startsAt: new Date(b.startsAt),
+    durationMin: b.durationMin,
+    priceLuna: nimToLuna(b.priceNim),
+    trackId: track?.id ?? null,
+    kind: b.kind,
+  });
+  return c.json({ id });
+});
+
+/* ------------------------------- posts ------------------------------- */
+const PostBody = z.object({ body: z.string().trim().min(1).max(1000), tierId: z.string().max(64).nullable().default(null) });
+
+studio.post("/studio/posts", async (c) => {
+  const { artist } = await requireArtist(c);
+  const b = PostBody.parse(await body(c));
+  const db = await getDb();
+  if (b.tierId) {
+    const [tier] = await db.select().from(schema.tiers).where(and(eq(schema.tiers.id, b.tierId), eq(schema.tiers.artistId, artist.id))).limit(1);
+    if (!tier) throw new HttpError("Choose one of your own tiers");
+  }
+  const id = newId();
+  await db.insert(schema.posts).values({ id, artistId: artist.id, body: b.body, tierId: b.tierId });
+  return c.json({ id });
+});
+
+/* ------------------------------- tiers ------------------------------- */
+const TierBody = z.object({
+  name: z.string().trim().min(2).max(30),
+  perks: z.string().trim().max(200).default(""),
+  priceNim: z.number().min(0.5).max(MAX_NIM),
+});
+
+studio.post("/studio/tiers", async (c) => {
+  const { artist } = await requireArtist(c);
+  const b = TierBody.parse(await body(c));
+  if ((await getTiers(artist.id)).length >= 3) throw new HttpError("Three tiers is the maximum");
+  const id = newId();
+  const db = await getDb();
+  await db.insert(schema.tiers).values({ id, artistId: artist.id, name: b.name, perks: b.perks, priceLuna: nimToLuna(b.priceNim) });
+  return c.json({ id });
+});
+
+studio.delete("/studio/tiers", async (c) => {
+  const { artist } = await requireArtist(c);
+  const { id } = z.object({ id: z.string().max(64) }).parse(await body(c));
+  const db = await getDb();
+  if (!(await getTiers(artist.id)).some((t) => t.id === id)) throw new HttpError("Tier not found", 404);
+  await db.delete(schema.tiers).where(eq(schema.tiers.id, id));
+  return c.json({ ok: true });
+});
+
+/* ------------------------------- polls ------------------------------- */
+const PollCreate = z.object({
+  question: z.string().trim().min(5, "Ask a question (at least 5 characters)").max(140),
+  options: z.array(z.string().trim().min(1).max(60)).min(2, "Add at least two options").max(5, "Five options at most"),
+  tierId: z.string().max(64).nullable().default(null),
+});
+
+studio.post("/studio/polls", async (c) => {
+  const { artist } = await requireArtist(c);
+  rateLimit(`poll:${artist.id}`, 10, 60_000);
+  const b = PollCreate.parse(await body(c));
+  const labels = [...new Set(b.options.map((o) => o.trim()))];
+  if (labels.length < 2) throw new HttpError("Options must be different from each other");
+
+  const db = await getDb();
+  if (b.tierId) {
+    const [tier] = await db.select().from(schema.tiers).where(and(eq(schema.tiers.id, b.tierId), eq(schema.tiers.artistId, artist.id))).limit(1);
+    if (!tier) throw new HttpError("Choose one of your own tiers");
+  }
+  const id = newId();
+  await db.insert(schema.polls).values({ id, artistId: artist.id, question: b.question, tierId: b.tierId });
+  await db.insert(schema.pollOptions).values(labels.map((label, position) => ({ id: newId(), pollId: id, label, position })));
+  return c.json({ id });
+});
+
+/** Close a poll (results stay visible, voting stops). */
+studio.patch("/studio/polls", async (c) => {
+  const { artist } = await requireArtist(c);
+  const { id } = z.object({ id: z.string().max(64) }).parse(await body(c));
+  const db = await getDb();
+  const res = await db
+    .update(schema.polls)
+    .set({ status: "closed" })
+    .where(and(eq(schema.polls.id, id), eq(schema.polls.artistId, artist.id), eq(schema.polls.status, "open")))
+    .returning({ id: schema.polls.id });
+  if (!res.length) throw new HttpError("Open poll not found", 404);
+  return c.json({ ok: true });
+});
+
+/* ------------------------------- remove ------------------------------- */
+studio.post("/studio/remove", async (c) => {
+  const { artist } = await requireArtist(c);
+  const { kind, id } = z.object({ kind: z.enum(["track", "show", "post", "poll"]), id: z.string().max(64) }).parse(await body(c));
+  const db = await getDb();
+  const t = kind === "track" ? schema.tracks : kind === "show" ? schema.shows : kind === "post" ? schema.posts : schema.polls;
+  const res = await db.update(t).set({ status: "removed" }).where(and(eq(t.id, id), eq(t.artistId, artist.id))).returning({ id: t.id });
+  if (!res.length) throw new HttpError("Not found", 404);
+  return c.json({ ok: true });
+});
