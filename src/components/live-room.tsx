@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ReactionIcon, reactionLabel } from "@/components/reaction-icons";
 import { Link } from "@/components/link";
 import { Send } from "lucide-react";
 import { api, randomHex } from "@/lib/api";
@@ -144,7 +145,7 @@ export function LiveRoom({ showId, canPost, live }: { showId: string; canPost: b
         <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-full h-60 overflow-hidden">
           {floaters.map((f) => (
             <span key={f.id} className="floater" style={{ ["--x" as string]: `${f.x}%`, ["--dx" as string]: `${f.dx}px` }} onAnimationEnd={() => setFloaters((all) => all.filter((x) => x.id !== f.id))}>
-              {f.emoji}
+              <ReactionIcon name={f.emoji} size={30} />
             </span>
           ))}
         </div>
@@ -154,10 +155,10 @@ export function LiveRoom({ showId, canPost, live }: { showId: string; canPost: b
               key={e}
               type="button"
               onClick={() => react(e)}
-              aria-label={`React ${e}, ${totals[e] ?? 0} so far`}
+              aria-label={`React: ${reactionLabel(e)}, ${totals[e] ?? 0} so far`}
               className="flex min-h-14 flex-col items-center justify-center rounded-2xl border border-line bg-white/[0.04] transition-colors hover:bg-white/[0.1] active:bg-white/[0.16]"
             >
-              <span key={popKey[e] ?? 0} className={`text-2xl leading-none ${popKey[e] ? "pop" : ""}`}>{e}</span>
+              <span key={popKey[e] ?? 0} className={`grid h-7 place-items-center ${popKey[e] ? "pop" : ""}`}><ReactionIcon name={e} size={26} /></span>
               <span className="mt-1 font-mono text-xs text-muted">{totals[e] ?? 0}</span>
             </button>
           ))}

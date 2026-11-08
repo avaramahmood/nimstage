@@ -167,7 +167,7 @@ export function Stage({ artists, tracks }: Props) {
       const a = artists[i];
       if (a) out.push({ key: `a-${a.id}`, kind: "artist", label: a.name, sub: a.genre, seed: a.id, image: a.avatarKey, onOpen: () => nav(`/artist/${a.handle}`) });
       const t = tracks[i];
-      if (t) out.push({ key: `t-${t.track.id}`, kind: "track", label: t.track.title, sub: `▶ ${t.artist.name}`, seed: t.track.id, image: t.track.coverKey, onOpen: () => player.play(list[i], list) });
+      if (t) out.push({ key: `t-${t.track.id}`, kind: "track", label: t.track.title, sub: `♪ ${t.artist.name}`, seed: t.track.id, image: t.track.coverKey, onOpen: () => player.play(list[i], list) });
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps

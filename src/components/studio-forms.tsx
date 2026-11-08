@@ -1,4 +1,5 @@
 import { useRouter } from "@/lib/nav";
+import { X } from "lucide-react";
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/toast";
@@ -274,7 +275,7 @@ export function PollForm({ tiers }: { tiers: { id: string; name: string }[] }) {
             <input id={`opt-${i}`} className="field min-w-0 flex-1" maxLength={60} value={o} onChange={(e) => setOpt(i, e.target.value)} placeholder={`Option ${i + 1}`} />
             {options.length > 2 && (
               <button type="button" aria-label={`Remove option ${i + 1}`} className="btn btn-ghost btn-sm" onClick={() => setOptions((all) => all.filter((_, j) => j !== i))}>
-                ✕
+                <X aria-hidden="true" size={16} />
               </button>
             )}
           </div>

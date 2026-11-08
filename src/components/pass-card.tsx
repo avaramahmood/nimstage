@@ -1,16 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { BadgeIcon } from "@/components/reaction-icons";
 import type { Pass } from "@shared/fanpass";
-
-const ICON: Record<string, string> = {
-  "first-ticket": "🎟️",
-  backer: "💛",
-  generous: "🎁",
-  chatterbox: "💬",
-  explorer: "🧭",
-  collector: "💿",
-  voice: "🗳️",
-};
 
 /** Level, XP and badges: all derived from real activity (see lib/fanpass.ts). */
 export function PassCard() {
@@ -52,7 +43,7 @@ export function PassCard() {
       <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {pass.badges.map((b) => (
           <li key={b.id} className={`rounded-2xl border p-3 ${b.unlocked ? "border-accent/50 bg-accent/10" : "border-line opacity-60"}`}>
-            <p className="text-2xl leading-none" aria-hidden="true">{ICON[b.id] ?? "⭐"}</p>
+            <BadgeIcon id={b.id} unlocked={b.unlocked} />
             <p className="mt-2 font-medium">{b.name}</p>
             <p className="text-xs text-muted">{b.unlocked ? "Unlocked" : b.hint}</p>
           </li>
