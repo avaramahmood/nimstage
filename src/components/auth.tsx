@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useWallet } from "@/lib/wallet";
 import { useToast } from "@/components/toast";
-import { AddressLogin } from "@/components/manual";
+import { AddressLogin, PairLogin } from "@/components/manual";
 
 /** Wallet sign-in. Inside Nimiq Pay: sign a challenge. In a plain browser: paste your address and prove it on-chain (plus demo personas, if enabled). */
 export function SignInPanel({ compact = false }: { compact?: boolean }) {
@@ -27,7 +27,13 @@ export function SignInPanel({ compact = false }: { compact?: boolean }) {
           {busy ? "Waiting for Nimiq Pay…" : "Sign in with Nimiq Pay"}
         </button>
       ) : (
-        <AddressLogin />
+        <>
+          <PairLogin />
+          <details className="rounded-2xl border border-line p-3">
+            <summary className="cursor-pointer font-medium">No Nimiq Pay on a phone? Prove your address instead</summary>
+            <div className="mt-3"><AddressLogin /></div>
+          </details>
+        </>
       )}
       {me?.config.demo && (
         <div className={`rounded-2xl border border-dashed border-white/20 p-3 ${compact ? "" : "mt-1"}`}>

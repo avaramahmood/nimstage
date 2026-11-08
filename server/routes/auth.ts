@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { randomBytes } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@srv/db";
 import { HttpError, body, clientIp, rateLimit, requireUser } from "@srv/http";
@@ -50,8 +50,8 @@ auth.post("/auth/verify", async (c) => {
   // Single use, consumed before verification so a failed attempt can't be replayed either.
   await db.update(schema.authChallenges).set({ used: true }).where(eq(schema.authChallenges.nonce, b.nonce));
 
-  // Address-proof challenges (below) are a different flow: they can never be redeemed with a signature.
-  if (challenge.message.startsWith(PROOF_PREFIX)) throw new HttpError("Login expired, try again", 400);
+  // The address-proof and device-pairing challenges (below) are different flows: they can never be redeemed with a signature.
+  if (!challenge.message.startsWith("Sign in to NimStage")) throw new HttpError("Login expired, try again", 400);
   const address = await verifyLoginSignature(challenge.message, b.publicKey, b.signature);
   if (!address) throw new HttpError("Signature could not be verified", 401);
 
@@ -91,6 +91,56 @@ auth.post("/auth/address/check", async (c) => {
   const claimed = await db.update(schema.authChallenges).set({ used: true }).where(and(eq(schema.authChallenges.nonce, code), eq(schema.authChallenges.used, false))).returning({ nonce: schema.authChallenges.nonce });
   if (!claimed.length) throw new HttpError("This code was already used.", 400);
   const user = await userForAddress(address);
+  const token = await setSession(c, user.id);
+  return c.json({ status: "ok", user: sessionUserView(user), token });
+});
+
+/*
+  Sign in on another device. The browser shows a short code; someone already signed in (inside Nimiq Pay, where
+  the wallet can sign) approves that code, and the browser's next poll receives a session for that account.
+  The code is for people to read and type; the polling secret never leaves the browser that asked.
+*/
+const PAIR_PREFIX = "pair:";
+const PAIR_MINUTES = 10;
+const PAIR_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I/L
+const pairCode = () => Array.from(randomBytes(8), (b) => PAIR_ALPHABET[b % PAIR_ALPHABET.length]).join("");
+const cleanCode = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+auth.post("/auth/pair/start", async (c) => {
+  rateLimit(`pair-start:${clientIp(c)}`, 12, 60_000);
+  const code = pairCode();
+  const secret = randomBytes(16).toString("hex");
+  const db = await getDb();
+  await db.insert(schema.authChallenges).values({ nonce: secret, message: PAIR_PREFIX + code, expiresAt: new Date(Date.now() + PAIR_MINUTES * 60_000) });
+  return c.json({ code: `${code.slice(0, 4)}-${code.slice(4)}`, secret, minutes: PAIR_MINUTES });
+});
+
+auth.post("/auth/pair/approve", async (c) => {
+  const user = await requireUser(c);
+  rateLimit(`pair-approve:${user.id}`, 10, 60_000);
+  const code = cleanCode(z.object({ code: z.string().min(6).max(16) }).parse(await body(c)).code);
+  const db = await getDb();
+  const done = await db
+    .update(schema.authChallenges)
+    .set({ message: `${PAIR_PREFIX}${code}:${user.id}` })
+    .where(and(eq(schema.authChallenges.message, PAIR_PREFIX + code), eq(schema.authChallenges.used, false), gt(schema.authChallenges.expiresAt, new Date())))
+    .returning({ nonce: schema.authChallenges.nonce });
+  if (!done.length) throw new HttpError("That code isn't valid or has expired. Get a new one on the other device.", 400);
+  return c.json({ ok: true });
+});
+
+auth.post("/auth/pair/check", async (c) => {
+  rateLimit(`pair-check:${clientIp(c)}`, 120, 60_000);
+  const { secret } = z.object({ secret: z.string().length(32) }).parse(await body(c));
+  const db = await getDb();
+  const [row] = await db.select().from(schema.authChallenges).where(eq(schema.authChallenges.nonce, secret)).limit(1);
+  if (!row || !row.message.startsWith(PAIR_PREFIX) || row.used || row.expiresAt < new Date()) throw new HttpError("This code expired. Get a new one.", 400);
+  const userId = row.message.slice(PAIR_PREFIX.length).split(":")[1];
+  if (!userId) return c.json({ status: "pending" });
+  const claimed = await db.update(schema.authChallenges).set({ used: true }).where(and(eq(schema.authChallenges.nonce, secret), eq(schema.authChallenges.used, false))).returning({ nonce: schema.authChallenges.nonce });
+  if (!claimed.length) throw new HttpError("This code was already used.", 400);
+  const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+  if (!user) throw new HttpError("That account no longer exists.", 400);
   const token = await setSession(c, user.id);
   return c.json({ status: "ok", user: sessionUserView(user), token });
 });

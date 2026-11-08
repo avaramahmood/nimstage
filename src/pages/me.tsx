@@ -8,6 +8,7 @@ import { ChevronRight } from "lucide-react";
 import { useWallet } from "@/lib/wallet";
 import { useToast } from "@/components/toast";
 import { SignInPanel } from "@/components/auth";
+import { ApproveDevice } from "@/components/manual";
 import { PassCard } from "@/components/pass-card";
 import { Skeleton } from "@/components/skeleton";
 import { useTitle } from "@/lib/use-now";
@@ -65,6 +66,7 @@ export default function MePage() {
           <div className="mt-4">
             <PassCard />
           </div>
+          <ApproveDevice />
           <nav aria-label="Account" className="mt-4">
             {me?.artist ? <Row href="/studio" title="Artist studio" body={`Manage @${me.artist.handle}: shows, tracks, earnings`} /> : <Row href="/studio" title="Become an artist" body="Sell tickets and memberships for your music" />}
             {user.role === "admin" && <Row href="/admin" title="Admin" body="Review reports and verify artists" />}

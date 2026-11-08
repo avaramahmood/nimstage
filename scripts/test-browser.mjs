@@ -87,6 +87,24 @@ const sig = await post("/api/auth/verify", { nonce: s2.code, publicKey: "a".repe
 check("an address-proof code can't be used on the signature route", sig.status === 400);
 check("an unknown code is refused", (await post("/api/auth/address/check", { code: "f".repeat(32) })).status === 400);
 
+/* ---------------- sign in on another device (approve a code from a signed-in phone) ---------------- */
+const phone = (await post("/api/auth/demo", { persona: "fan" })).token; // stands in for a phone already signed in inside Nimiq Pay
+const pair = await post("/api/auth/pair/start", {});
+check("a browser gets a short code and a private polling secret", pair.status === 200 && /^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(pair.code) && pair.secret?.length === 32 && !pair.secret.includes(pair.code.replace("-", "")), JSON.stringify(pair));
+const pairCheck = () => post("/api/auth/pair/check", { secret: pair.secret });
+check("before approval the browser is only told to wait", (await pairCheck()).status === "pending");
+check("approving needs a signed-in account", (await post("/api/auth/pair/approve", { code: pair.code })).status === 401);
+check("a wrong code is refused", (await post("/api/auth/pair/approve", { code: "ZZZZ-ZZZZ" }, phone)).status === 400);
+check("typing the code lower-case and without the dash still works", (await post("/api/auth/pair/approve", { code: pair.code.replace("-", "").toLowerCase() }, phone)).ok === true);
+const paired = await pairCheck();
+check("then the browser receives a session for the approving account", paired.status === "ok" && !!paired.token);
+check("and that session is that account", (await get("/api/me", paired.token)).user?.id === "demo-fan");
+check("a code works once (replay refused)", (await pairCheck()).status === 400);
+check("an approved code can't be approved again", (await post("/api/auth/pair/approve", { code: pair.code }, phone)).status === 400);
+check("the polling secret can't be guessed from the code", (await post("/api/auth/pair/check", { secret: "0".repeat(32) })).status === 400);
+const pair2 = await post("/api/auth/pair/start", {});
+check("a pairing code can't be redeemed on the signature route", (await post("/api/auth/verify", { nonce: pair2.secret, publicKey: "a".repeat(64), signature: "b".repeat(128) })).status === 400);
+
 /* ---------------- paying by hand ---------------- */
 const fan = (await post("/api/auth/demo", { persona: "fan" })).token;
 const { intent } = await post("/api/payments/intent", { kind: "tip", refId: "a-kofistatic", amountLuna: 100_000 }, fan);

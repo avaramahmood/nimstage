@@ -207,3 +207,99 @@ export function ManualPayPanel({ intent, onPaid }: { intent: { id: string; amoun
     </div>
   );
 }
+
+/** The browser's side of "sign in on another device": show a code, wait for it to be approved in Nimiq Pay. */
+export function PairLogin() {
+  const { acceptToken } = useWallet();
+  const [pair, setPair] = useState<{ code: string; secret: string; minutes: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const timedOut = usePoll(
+    async () => {
+      if (!pair) return false;
+      const r = await api<{ status: "ok" | "pending"; token?: string }>("/api/auth/pair/check", { secret: pair.secret });
+      if (r.status === "ok" && r.token) {
+        await acceptToken(r.token);
+        return true;
+      }
+      return false;
+    },
+    pair?.minutes ?? 10,
+    !!pair,
+  );
+
+  async function start() {
+    setError("");
+    setBusy(true);
+    try {
+      setPair(await api("/api/auth/pair/start", {}));
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!pair) {
+    return (
+      <div className="grid gap-3">
+        <p className="text-muted">
+          Easiest: use <strong className="text-ink">Nimiq Pay on your phone</strong>. You get a short code here, approve it in the app, and this browser signs in. No transaction needed.
+        </p>
+        {error && <p role="alert" className="rounded-2xl border border-danger/40 bg-danger/10 p-3 text-danger">{error}</p>}
+        <button type="button" className="btn btn-primary w-full" disabled={busy} onClick={() => void start()}>{busy ? "One moment…" : "Sign in with my phone"}</button>
+      </div>
+    );
+  }
+  return (
+    <div className="grid gap-3" aria-live="polite">
+      <p className="label">Your code</p>
+      <p className="select-all rounded-2xl border border-line bg-white/[0.04] px-4 py-4 text-center font-mono text-4xl tracking-[0.2em]" aria-label={`Your sign-in code is ${pair.code.split("").join(" ")}`}>{pair.code}</p>
+      <ol className="grid list-decimal gap-1 pl-5 text-muted">
+        <li>On your phone, open <strong className="text-ink">NimStage inside Nimiq Pay</strong> and sign in there.</li>
+        <li>Go to <strong className="text-ink">Me → Sign in on another device</strong>.</li>
+        <li>Type this code and press Approve.</li>
+      </ol>
+      <p className="flex items-center gap-2 text-sm text-muted"><span className="live-dot text-accent" aria-hidden="true" />{timedOut ? "The code expired. Get a new one." : "Waiting for you to approve it on your phone…"}</p>
+      <button type="button" className="btn btn-ghost btn-sm w-fit" onClick={() => setPair(null)}>{timedOut ? "Get a new code" : "Cancel"}</button>
+    </div>
+  );
+}
+
+/** The signed-in side: type the code you see on the other screen to sign that device in as you. */
+export function ApproveDevice() {
+  const toast = useToast();
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function approve(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      await api("/api/auth/pair/approve", { code });
+      setCode("");
+      toast("Done. The other device is now signed in as you.", "ok");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form onSubmit={approve} className="card mt-4 grid gap-3 p-4">
+      <div>
+        <h2 className="display display-sm">Sign in on another device</h2>
+        <p className="mt-1 text-sm text-muted">Signing in on a computer or in a browser? Type the code shown there. Only approve a code you can see on your own screen.</p>
+      </div>
+      <label className="block">
+        <span className="sr-only">Code from the other screen</span>
+        <input className="field font-mono uppercase tracking-widest" placeholder="ABCD-EFGH" autoCapitalize="characters" autoComplete="off" spellCheck={false} maxLength={9} value={code} onChange={(e) => setCode(e.target.value)} />
+      </label>
+      {error && <p role="alert" className="rounded-2xl border border-danger/40 bg-danger/10 p-3 text-danger">{error}</p>}
+      <button type="submit" className="btn btn-primary w-full" disabled={busy || code.replace(/[^A-Za-z0-9]/g, "").length < 8}>{busy ? "Approving…" : "Approve"}</button>
+    </form>
+  );
+}
