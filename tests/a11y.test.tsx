@@ -97,8 +97,8 @@ async function renderPage(path: string) {
 }
 
 const matrix: { who: "fan" | "artist" | "admin" | null; pages: string[] }[] = [
-  { who: null, pages: ["/", "/discover", "/discover?q=mira", "/show/s-kofi-1", "/artist/miravale", "/artist/kofistatic", "/library", "/studio", "/me", "/policy", "/about", "/help", "/terms", "/privacy", "/signin", "/settings", "/receipts", "/no-such-page"] },
-  { who: "fan", pages: ["/", "/show/s-kofi-1", "/artist/miravale", "/library", "/studio", "/me", "/settings", "/receipts"] },
+  { who: null, pages: ["/", "/discover", "/discover?q=mira", "/show/s-kofi-1", "/track/tr-miravale-2", "/artist/miravale", "/artist/kofistatic", "/library", "/studio", "/me", "/policy", "/about", "/help", "/terms", "/privacy", "/signin", "/settings", "/receipts", "/no-such-page"] },
+  { who: "fan", pages: ["/", "/show/s-kofi-1", "/track/tr-miravale-2", "/artist/miravale", "/library", "/studio", "/me", "/settings", "/receipts"] },
   { who: "artist", pages: ["/studio", "/studio/profile", "/studio/track/new", "/studio/show/new", "/studio/post/new", "/studio/poll/new", "/studio/tiers", "/artist/miravale", "/me"] },
   { who: "admin", pages: ["/admin", "/me"] },
 ];
@@ -202,5 +202,22 @@ describe("behaviour in the rendered app", () => {
     fireEvent.change(minute, { target: { value: "30" } });
     await waitFor(() => expect(view.container.querySelector<HTMLSelectElement>('select[aria-label="Hour"]')!.value).toBe("21"));
     expect(view.container.querySelector<HTMLSelectElement>('select[aria-label="Minute"]')!.value).toBe("30");
+  }, 30_000);
+
+  it("track page: the preview and the purchase are two separate actions, and a free track just plays", async () => {
+    await login(null);
+    const view = await renderPage("/track/tr-miravale-2");
+    await waitFor(() => expect(view.container.textContent).toContain("Midnight Cue"));
+    const buttons = Array.from(view.container.querySelectorAll("button")).map((b) => b.textContent?.trim() ?? "");
+    expect(buttons.some((b) => /Play a \d+-second preview/.test(b))).toBe(true);
+    expect(buttons.some((b) => /Buy the full track · 2 NIM/.test(b))).toBe(true);
+    expect(view.container.textContent).toMatch(/goes straight to Mira Vale.s wallet/);
+    cleanup();
+    const free = await renderPage("/track/tr-paperlanterns-1");
+    await waitFor(() => expect(free.container.textContent).toContain("Free to play in full"));
+    expect(Array.from(free.container.querySelectorAll("button")).some((b) => /Buy the full track/.test(b.textContent ?? ""))).toBe(false);
+    cleanup();
+    const missing = await renderPage("/track/no-such-track");
+    await waitFor(() => expect(missing.container.textContent).toMatch(/Nothing here|not found/i));
   }, 30_000);
 });

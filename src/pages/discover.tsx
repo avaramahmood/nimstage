@@ -61,7 +61,7 @@ export default function DiscoverPage() {
                 <li key={track.id} className="card grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 p-3">
                   <Cover seed={track.id} image={track.coverKey} className="h-14 w-14 rounded-xl" />
                   <span className="min-w-0">
-                    <span className="block truncate font-medium">{track.title}</span>
+                    <Link href={`/track/${track.id}`} className="block truncate font-medium">{track.title}</Link>
                     <span className="block truncate text-sm text-muted">{artist.name} · {formatNim(track.priceLuna)}</span>
                   </span>
                   <PlayToggle track={{ id: track.id, title: track.title, artist: artist.name, artistHandle: artist.handle, seed: track.id, cover: track.coverKey, durationSec: track.durationSec, previewSec: track.previewSec }} />

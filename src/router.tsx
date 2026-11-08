@@ -35,6 +35,7 @@ export const routes: RouteObject[] = [
       { path: "signin", ...page(() => import("@/pages/signin")) },
       { path: "discover", ...page(() => import("@/pages/discover")) },
       { path: "show/:id", ...page(() => import("@/pages/show")) },
+      { path: "track/:id", ...page(() => import("@/pages/track")) },
       { path: "artist/:handle", ...page(() => import("@/pages/artist")) },
       { path: "library", ...page(() => import("@/pages/library")) },
       { path: "me", ...page(() => import("@/pages/me")) },

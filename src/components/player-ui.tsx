@@ -62,7 +62,7 @@ export function TrackRow({
       <div className="min-w-0">
         <p className="flex items-center gap-2 truncate font-medium">
           {active && p.playing && <Eq />}
-          <span className="truncate">{track.title}</span>
+          <Link href={`/track/${track.id}`} className="truncate underline-offset-4 hover:underline">{track.title}</Link>
         </p>
         <p className="flex items-center gap-1 truncate text-sm text-muted">
           {locked && <Lock aria-hidden="true" size={12} />}

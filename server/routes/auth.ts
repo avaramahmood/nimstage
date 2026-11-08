@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@srv/db";
 import { HttpError, body, clientIp, rateLimit, requireUser } from "@srv/http";
-import { clearSession, getUser, setSession } from "@srv/session";
+import { clearSession, getUser, mediaToken, setSession } from "@srv/session";
 import { verifyLoginSignature } from "@srv/nimiq";
 import { normalizeAddress, shortAddress } from "@shared/units";
 import { newId } from "@srv/ids";
@@ -45,8 +45,8 @@ auth.post("/auth/verify", async (c) => {
     user = { id: newId(), address: norm, displayName: shortAddress(address), role: admins.includes(norm) ? "admin" : "fan", createdAt: new Date() };
     await db.insert(schema.users).values(user);
   }
-  await setSession(c, user.id);
-  return c.json({ user: { id: user.id, name: user.displayName, role: user.role, address } });
+  const token = await setSession(c, user.id);
+  return c.json({ user: { id: user.id, name: user.displayName, role: user.role, address }, token });
 });
 
 // Persona login for demos and local development (no wallet needed). Enabled only with NIMSTAGE_DEMO=1.
@@ -58,8 +58,8 @@ auth.post("/auth/demo", async (c) => {
   const db = await getDb();
   const [user] = await db.select().from(schema.users).where(eq(schema.users.id, PERSONAS[persona])).limit(1);
   if (!user) throw new HttpError("Demo data not seeded", 500);
-  await setSession(c, user.id);
-  return c.json({ user: { id: user.id, name: user.displayName, role: user.role, address: user.address } });
+  const token = await setSession(c, user.id);
+  return c.json({ user: { id: user.id, name: user.displayName, role: user.role, address: user.address }, token });
 });
 
 auth.post("/auth/logout", (c) => {
@@ -77,6 +77,12 @@ auth.get("/me", async (c) => {
     artist: artist ? { id: artist.id, handle: artist.handle, name: artist.name } : null,
     config,
   });
+});
+
+/** A narrow token so <audio> (which can't send headers) can still unlock what you have access to. */
+auth.get("/me/media-token", async (c) => {
+  const user = await requireUser(c);
+  return c.json({ token: await mediaToken(user.id) });
 });
 
 auth.get("/me/pass", async (c) => {

@@ -18,12 +18,13 @@ async function test(name: string, fn: () => Promise<void>) {
   }
 }
 
-type Session = { cookie: string };
+type Session = { cookie: string; token: string };
 const hex = (n = 8) => Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join("");
 async function login(persona: "fan" | "artist" | "admin"): Promise<Session> {
   const r = await fetch(`${base}/api/auth/demo`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ persona }) });
   assert.equal(r.status, 200, "demo login failed (is NIMSTAGE_DEMO=1?)");
-  return { cookie: r.headers.get("set-cookie")!.split(";")[0] };
+  const body = (await r.json()) as { token: string };
+  return { cookie: r.headers.get("set-cookie")!.split(";")[0], token: body.token };
 }
 async function call(path: string, opts: { method?: string; body?: unknown; as?: Session | null; form?: FormData } = {}) {
   const r = await fetch(base + path, {
@@ -274,6 +275,51 @@ await test("artwork: track and show covers can be set on your own items", async 
   assert.equal((await call("/api/studio/art/track/" + trackId, { method: "DELETE", as: artist })).status, 200);
 });
 
+/* ------------------------------- sessions without cookies ------------------------------- */
+await test("sessions: a bearer token signs you in without a cookie; audio uses a narrow media token", async () => {
+  const bearer = (t: string) => ({ authorization: "Bearer " + t });
+  const who = async (t: string) => ((await (await fetch(base + "/api/me", { headers: bearer(t) })).json()) as { user: { role: string } | null }).user;
+  assert.equal((await who(fan.token))?.role, "fan", "a session token alone signs you in");
+  assert.equal(await who("garbage"), null);
+  assert.equal((await fetch(base + "/api/me/media-token")).status, 401, "signed out");
+  const mt = ((await (await fetch(base + "/api/me/media-token", { headers: bearer(fan.token) })).json()) as { token: string }).token;
+  assert.equal(await who(mt), null, "a media token is not a session");
+  // the fan bought a ticket for this show above, so with the right token the audio is the full file
+  const access = async (qs: string) => (await fetch(`${base}/api/tracks/${trackId}/stream?show=${showId}${qs}`)).headers.get("x-nimstage-access");
+  assert.equal(await access(""), "preview", "no cookie and no token: preview");
+  assert.equal(await access("&st=" + mt), "full", "the media token unlocks what the fan owns");
+  assert.equal(await access("&st=" + fan.token), "preview", "a session token is not accepted as a media token");
+  assert.equal(await access("&st=garbage"), "preview");
+  const artistMt = ((await (await fetch(base + "/api/me/media-token", { headers: bearer(artist.token) })).json()) as { token: string }).token;
+  assert.equal(await access("&st=" + artistMt), "full", "the artist hears their own track");
+});
+
+/* ------------------------------- track page ------------------------------- */
+await test("tracks: the track page shows price and access, offers a separate buy, and unlocks after a verified payment", async () => {
+  const view = async (id: string, as: Session | null) => call("/api/tracks/" + id, { as });
+  const anon = await view("tr-miravale-2", null);
+  assert.equal(anon.status, 200);
+  assert.equal(anon.json.track.priceLuna, 200_000, "2 NIM");
+  assert.equal(anon.json.access, false, "signed out: preview only");
+  assert.equal(anon.json.track.mediaKey, undefined, "the storage key of the audio file is never sent");
+  assert.equal(anon.json.artist.handle, "miravale");
+  assert.equal((await view("tr-miravale-2", fan)).json.access, false);
+  assert.equal((await view("tr-miravale-2", artist)).json.access, true, "the artist always has access");
+  assert.equal((await view("tr-miravale-2", artist)).json.own, true);
+  assert.equal((await view("tr-paperlanterns-1", fan)).json.access, true, "a free track is open to everyone");
+  const exclusive = await view("tr-kofistatic-0", fan); // free, but it is the audio of a ticketed show
+  assert.equal(exclusive.json.access, false, "show audio is not free just because its own price is 0");
+  assert.equal(exclusive.json.exclusiveShow?.id, "s-kofi-1", "the page points at the ticket that unlocks it");
+  assert.equal((await view("no-such-track", null)).status, 404);
+  // buy it (demo payment), then the same page reports access and the full audio streams
+  const { json: i } = await call("/api/payments/intent", { body: { kind: "track", refId: "tr-miravale-2" }, as: fan });
+  assert.equal(i.intent.amountLuna, 200_000);
+  assert.equal((await call("/api/payments/confirm", { body: { intentId: i.intent.id, txHash: "demo-" + hex(16) }, as: fan })).json.status, "confirmed");
+  assert.equal((await view("tr-miravale-2", fan)).json.access, true, "owned after the verified payment");
+  assert.equal((await fetch(base + "/api/tracks/tr-miravale-2/stream", { headers: { cookie: fan.cookie } })).headers.get("x-nimstage-access"), "full");
+  assert.equal((await view("tr-miravale-2", null)).json.access, false, "still locked for everyone else");
+});
+
 /* ------------------------------- live video ------------------------------- */
 const jwtClaims = (t: string) => JSON.parse(Buffer.from(t.split(".")[1], "base64url").toString());
 const liveShow = (startsInMin: number, priceNim = 2) => call("/api/studio/shows", { body: { title: "Live Video Test", description: "d", startsAt: new Date(Date.now() + startsInMin * 60_000).toISOString(), durationMin: 30, priceNim, kind: "live" }, as: artist });
@@ -366,6 +412,7 @@ await test("moderation: a report can be dismissed or actioned; a takedown remove
   assert.ok(rep, "report visible to admin");
   assert.equal((await call("/api/admin/reports", { body: { id: rep!.id, action: "takedown" }, as: admin })).status, 200);
   assert.equal((await fetch(`${base}/api/tracks/${trackId}/stream`)).status, 404, "taken-down track no longer streams");
+  assert.equal((await fetch(`${base}/api/tracks/${trackId}`)).status, 404, "...and its page is gone");
   assert.ok(!(await (await fetch(`${base}/api/artists/miravale`)).text()).includes("Studio Test"), "title must not leak via the artist view");
   const showView = await (await fetch(`${base}/api/shows/${showId}`)).text();
   assert.ok(!showView.includes("Studio Test"), "title must not leak via the show view");

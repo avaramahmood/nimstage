@@ -73,6 +73,9 @@ ${raw.length}`), ...raw]);
   const sig = hex(Nimiq.Signature.create(wallet, wpub, Nimiq.Hash.computeSha256(prefixed)).serialize());
   const login = await post("/api/auth/verify", { nonce: ch.nonce, publicKey: wpub.toHex(), signature: sig });
   const cookie = login.cookie.split(";")[0];
+  check("session: the real wallet login also returns a bearer token", typeof login.body.token === "string" && login.body.token.split(".").length === 3);
+  const viaBearer = await (await fetch(base + "/api/me", { headers: { authorization: "Bearer " + login.body.token } })).json();
+  check("session: that token alone (no cookie) signs you in", viaBearer.user?.id === login.body.user.id);
   const call = async (path, method = "GET", body) => {
     const r = await fetch(base + path, { method, headers: { cookie, ...(body ? { "content-type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
     return { status: r.status, body: await r.json().catch(() => null), type: r.headers.get("content-disposition") };

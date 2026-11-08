@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { stepQueue } from "@shared/queue";
+import { streamUrl } from "./session";
 
 export type PlayerTrack = { id: string; title: string; artist: string; artistHandle: string; seed: string; cover?: string | null; durationSec: number; showId?: string; previewSec: number };
 
@@ -57,7 +58,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const play = useCallback((t: PlayerTrack, queue?: PlayerTrack[]) => {
     const a = el.current;
     if (!a) return;
-    const url = `/api/tracks/${t.id}/stream${t.showId ? `?show=${t.showId}` : ""}`;
+    const url = streamUrl(t.id, t.showId);
     setCurrent(0);
     setS((x) => ({ ...INITIAL, track: t, duration: t.durationSec, open: x.open, queue: queue?.length ? queue : [t] }));
     // Ask the server whether this listener gets the full file or the preview.

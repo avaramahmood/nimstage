@@ -1,3 +1,5 @@
+import { getToken } from "./session";
+
 export class ApiError extends Error {
   constructor(message: string, public status: number) {
     super(message);
@@ -5,9 +7,13 @@ export class ApiError extends Error {
 }
 
 export async function api<T = unknown>(path: string, body?: unknown, method = body === undefined ? "GET" : "POST"): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (!(body instanceof FormData) && body !== undefined) headers["content-type"] = "application/json";
+  if (token) headers.authorization = `Bearer ${token}`; // the cookie may not survive in a WebView
   const res = await fetch(path, {
     method,
-    headers: body instanceof FormData || body === undefined ? undefined : { "content-type": "application/json" },
+    headers,
     body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
     credentials: "same-origin",
   });

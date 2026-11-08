@@ -2,7 +2,7 @@
 // `prefetchRoute` lets links warm the cache before the click.
 import { keepPreviousData, useQuery, type QueryClient } from "@tanstack/react-query";
 import type { Serialized } from "@shared/types";
-import type { adminView, artistView, discoverView, homeView, libraryView, showView, studioView } from "@srv/views";
+import type { adminView, artistView, discoverView, homeView, libraryView, showView, studioView, trackView } from "@srv/views";
 import { api, ApiError } from "./api";
 
 type View<F extends (...args: never[]) => unknown> = Serialized<NonNullable<Awaited<ReturnType<F>>>>;
@@ -10,6 +10,7 @@ export type HomeView = View<typeof homeView>;
 export type DiscoverView = View<typeof discoverView>;
 export type ArtistView = View<typeof artistView>;
 export type ShowView = View<typeof showView>;
+export type TrackView = View<typeof trackView>;
 export type LibraryView = View<typeof libraryView>;
 export type StudioView = View<typeof studioView>;
 export type AdminView = View<typeof adminView>;
@@ -23,6 +24,7 @@ export const keys = {
   discover: (q: string) => ["discover", q] as const,
   artist: (handle: string) => ["artist", handle] as const,
   show: (id: string) => ["show", id] as const,
+  track: (id: string) => ["track", id] as const,
   library: ["library"] as const,
   studio: ["studio"] as const,
   admin: ["admin"] as const,
@@ -33,6 +35,7 @@ const fetchers = {
   discover: (q: string) => api<DiscoverView>(`/api/discover?q=${encodeURIComponent(q)}`),
   artist: (handle: string) => api<ArtistView>(`/api/artists/${encodeURIComponent(handle)}`),
   show: (id: string) => api<ShowView>(`/api/shows/${encodeURIComponent(id)}`),
+  track: (id: string) => api<TrackView>(`/api/tracks/${encodeURIComponent(id)}`),
   library: () => api<LibraryView>("/api/library"),
   studio: () => api<StudioView>("/api/studio"),
   admin: () => api<AdminView>("/api/admin"),
@@ -42,6 +45,7 @@ export const useHome = () => useQuery({ queryKey: keys.home, queryFn: fetchers.h
 export const useDiscover = (q: string) => useQuery({ queryKey: keys.discover(q), queryFn: () => fetchers.discover(q), placeholderData: keepPreviousData, staleTime: 15_000 });
 export const useArtist = (handle: string) => useQuery({ queryKey: keys.artist(handle), queryFn: () => fetchers.artist(handle), retry: notFoundNoRetry });
 export const useShow = (id: string) => useQuery({ queryKey: keys.show(id), queryFn: () => fetchers.show(id), retry: notFoundNoRetry });
+export const useTrack = (id: string) => useQuery({ queryKey: keys.track(id), queryFn: () => fetchers.track(id), retry: notFoundNoRetry });
 export const useLibrary = () => useQuery({ queryKey: keys.library, queryFn: fetchers.library, retry: notFoundNoRetry });
 export const useStudio = () => useQuery({ queryKey: keys.studio, queryFn: fetchers.studio, retry: notFoundNoRetry });
 export const useAdmin = () => useQuery({ queryKey: keys.admin, queryFn: fetchers.admin, retry: notFoundNoRetry });
@@ -52,6 +56,7 @@ export function prefetchRoute(qc: QueryClient, href: string) {
   let m: RegExpExecArray | null;
   if (path === "/") void qc.prefetchQuery({ queryKey: keys.home, queryFn: fetchers.home, staleTime: 15_000 });
   else if ((m = /^\/show\/([^/]+)$/.exec(path))) void qc.prefetchQuery({ queryKey: keys.show(m[1]), queryFn: () => fetchers.show(m![1]), staleTime: 15_000 });
+  else if ((m = /^\/track\/([^/]+)$/.exec(path))) void qc.prefetchQuery({ queryKey: keys.track(m[1]), queryFn: () => fetchers.track(m![1]), staleTime: 15_000 });
   else if ((m = /^\/artist\/([^/]+)$/.exec(path))) void qc.prefetchQuery({ queryKey: keys.artist(m[1]), queryFn: () => fetchers.artist(m![1]), staleTime: 15_000 });
   else if (path === "/discover") void qc.prefetchQuery({ queryKey: keys.discover(""), queryFn: () => fetchers.discover(""), staleTime: 15_000 });
 }

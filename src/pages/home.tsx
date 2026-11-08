@@ -82,12 +82,14 @@ export default function HomePage() {
             {recent.map(({ track, artist }) => (
               <li key={track.id} className="min-w-0">
                 <div className="relative">
-                  <Cover seed={track.id} image={track.coverKey} className="aspect-square w-full rounded-[20px]" />
+                  <Link href={`/track/${track.id}`} tabIndex={-1} aria-label={`${track.title}: open track page`} className="block">
+                    <Cover seed={track.id} image={track.coverKey} className="aspect-square w-full rounded-[20px]" />
+                  </Link>
                   <div className="absolute bottom-2 right-2 z-10">
                     <PlayToggle track={{ id: track.id, title: track.title, artist: artist.name, artistHandle: artist.handle, seed: track.id, cover: track.coverKey, durationSec: track.durationSec, previewSec: track.previewSec }} />
                   </div>
                 </div>
-                <p className="mt-2 truncate font-medium">{track.title}</p>
+                <Link href={`/track/${track.id}`} className="mt-2 block truncate font-medium">{track.title}</Link>
                 <Link href={`/artist/${artist.handle}`} className="block truncate text-sm text-muted">{artist.name}</Link>
                 <p className="font-mono text-xs text-muted">{formatNim(track.priceLuna)}</p>
               </li>

@@ -38,7 +38,7 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const user = me?.user;
   const [name, setName] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"" | "name" | "out" | "delete">("");
+  const [busy, setBusy] = useState<"" | "name" | "out" | "delete" | "export">("");
   const [confirm, setConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
 
@@ -70,6 +70,26 @@ export default function SettingsPage() {
       await refresh();
       setName(null);
       toast("Name updated.", "ok");
+    } catch (err) {
+      toast((err as Error).message, "error");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  /** Fetched with the session header (a plain link wouldn't carry it) and saved as a file. */
+  async function downloadData() {
+    setBusy("export");
+    try {
+      const data = await api("/api/me/export");
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "nimstage-my-data.json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
     } catch (err) {
       toast((err as Error).message, "error");
     } finally {
@@ -158,9 +178,9 @@ export default function SettingsPage() {
       </Block>
 
       <Block title="Your data">
-        <a href="/api/me/export" download className="btn btn-ghost w-full">
-          <Download aria-hidden="true" size={18} /> Download my data
-        </a>
+        <button type="button" className="btn btn-ghost w-full" disabled={busy === "export"} onClick={() => void downloadData()}>
+          <Download aria-hidden="true" size={18} /> {busy === "export" ? "Preparing…" : "Download my data"}
+        </button>
       </Block>
 
       <button type="button" className="btn btn-ghost w-full" disabled={busy === "out"} onClick={() => void signOut()}>

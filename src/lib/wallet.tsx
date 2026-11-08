@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useRouter } from "@/lib/nav";
 import { api, randomHex, sleep } from "./api";
+import { getToken, setMediaToken, setToken } from "./session";
 import { checkNewBadges, primeBadges } from "./pass";
 import { useToast } from "@/components/toast";
 
@@ -59,6 +60,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     try {
       const data = await api<Me>("/api/me");
       setMe(data);
+      if (data.user) void api<{ token: string }>("/api/me/media-token").then((r) => setMediaToken(r.token), () => {});
+      else {
+        setMediaToken(null);
+        if (getToken()) setToken(null); // a stored token the server no longer accepts
+      }
       // Remember which badges this user already has, so only new unlocks trigger a toast.
       if (data.user) void primeBadges(data.user.id);
     } finally {
@@ -82,7 +88,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       await nimiq.listAccounts(); // asks the user to share their address
       const { nonce, message } = await api<{ nonce: string; message: string }>("/api/auth/challenge", {});
       const signed = await nimiq.sign(message);
-      await api("/api/auth/verify", { nonce, publicKey: signed.publicKey, signature: signed.signature });
+      const r = await api<{ token?: string }>("/api/auth/verify", { nonce, publicKey: signed.publicKey, signature: signed.signature });
+      setToken(r.token ?? null);
     } catch (e) {
       throw friendly(e);
     }
@@ -92,7 +99,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const demoLogin = useCallback(
     async (persona: "fan" | "artist" | "admin") => {
-      await api("/api/auth/demo", { persona });
+      const r = await api<{ token?: string }>("/api/auth/demo", { persona });
+      setToken(r.token ?? null);
       await refresh();
       router.refresh();
     },
@@ -101,6 +109,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await api("/api/auth/logout", {});
+    setToken(null);
+    setMediaToken(null);
     await refresh();
     router.refresh();
   }, [refresh, router]);

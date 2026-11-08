@@ -7,14 +7,17 @@ import {
   canAccess,
   discover,
   getAdminData,
+  getArtistById,
   getArtistByUser,
   getArtistPage,
   getHome,
   getLibrary,
   getPollsForArtist,
+  getShow,
   getShowPage,
   getStudio,
   getTiers,
+  getTrack,
   getTracksByArtist,
   ticketedShowsByTrack,
   type AccessCtx,
@@ -51,6 +54,26 @@ export async function showView(id: string, ctx: AccessCtx) {
   const page = await getShowPage(id, ctx);
   if (!page) return null;
   return { show: page.show, track: page.track, access: page.access, own: ctx.ownArtistId === page.show.artistId, canChat: page.access && !!ctx.user };
+}
+
+/**
+ * One track for its page: what it costs, whether this viewer already has it, and (for show-exclusive audio)
+ * the show whose ticket unlocks it. The storage key of the file is deliberately not included.
+ */
+export async function trackView(id: string, ctx: AccessCtx) {
+  const track = await getTrack(id);
+  if (!track || track.status !== "published") return null;
+  const artist = await getArtistById(track.artistId);
+  if (!artist || artist.status !== "active") return null;
+  const showIds = (await ticketedShowsByTrack([track.id])).get(track.id) ?? [];
+  const show = showIds[0] ? await getShow(showIds[0]) : null;
+  return {
+    track: { id: track.id, title: track.title, artistId: track.artistId, durationSec: track.durationSec, previewSec: track.previewSec, priceLuna: track.priceLuna, coverKey: track.coverKey },
+    artist: { id: artist.id, handle: artist.handle, name: artist.name, verified: artist.verified, avatarKey: artist.avatarKey },
+    access: canAccess(ctx, "track", track, showIds),
+    own: ctx.ownArtistId === track.artistId,
+    exclusiveShow: show && show.status === "scheduled" ? { id: show.id, title: show.title } : null,
+  };
 }
 
 export const libraryView = (userId: string) => getLibrary(userId);

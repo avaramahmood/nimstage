@@ -61,7 +61,7 @@ export default function LibraryPage() {
             {lib.tracks.map(({ track, artist }) => (
               <li key={track.id} className="flex items-center justify-between gap-3 border-b border-line py-3">
                 <span className="min-w-0">
-                  <span className="block truncate font-medium">{track.title}</span>
+                  <Link href={`/track/${track.id}`} className="block truncate font-medium">{track.title}</Link>
                   <span className="block truncate text-sm text-muted">{artist.name}</span>
                 </span>
                 <PlayToggle track={{ id: track.id, title: track.title, artist: artist.name, artistHandle: artist.handle, seed: track.id, cover: track.coverKey, durationSec: track.durationSec, previewSec: track.previewSec }} />

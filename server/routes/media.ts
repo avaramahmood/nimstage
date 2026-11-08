@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@srv/db";
-import { getUser } from "@srv/session";
+import { getMediaUser } from "@srv/session";
 import { accessCtx, canAccess, getShow, getTrack, ticketedShowsByTrack } from "@srv/data";
 import { mediaSize, openMedia } from "@srv/storage";
 import { ensureDemoMedia } from "@srv/seed";
@@ -18,7 +18,7 @@ media.get("/tracks/:id/stream", async (c) => {
   const track = await getTrack(id);
   if (!track || track.status !== "published") return c.text("Not found", 404);
 
-  const ac = await accessCtx(await getUser(c));
+  const ac = await accessCtx(await getMediaUser(c));
   const exclusive = (await ticketedShowsByTrack([track.id])).get(track.id) ?? [];
   let full = canAccess(ac, "track", track, exclusive);
   const showId = c.req.query("show");

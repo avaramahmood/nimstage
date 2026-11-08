@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { HttpError, requireUser } from "@srv/http";
 import { getUser } from "@srv/session";
 import { randomArtistHandle } from "@srv/data";
-import { accessCtx, adminView, artistView, discoverView, homeView, libraryView, studioView } from "@srv/views";
+import { accessCtx, adminView, artistView, discoverView, homeView, libraryView, studioView, trackView } from "@srv/views";
 
 export const pages = new Hono();
 
@@ -13,6 +13,12 @@ pages.get("/discover", async (c) => c.json(await discoverView((c.req.query("q") 
 pages.get("/artists/:handle", async (c) => {
   const view = await artistView(c.req.param("handle"), await accessCtx(await getUser(c)));
   if (!view) throw new HttpError("Artist not found", 404);
+  return c.json(view);
+});
+
+pages.get("/tracks/:id", async (c) => {
+  const view = await trackView(c.req.param("id"), await accessCtx(await getUser(c)));
+  if (!view) throw new HttpError("Track not found", 404);
   return c.json(view);
 });
 
