@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { mkdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
@@ -57,6 +57,19 @@ export async function saveMedia(data: Buffer, ext: string): Promise<string> {
   const key = `${randomUUID()}.${ext}`;
   await saveMediaAs(key, data);
   return key;
+}
+
+/** Best-effort removal (replaced or removed artwork). A missing file is fine. */
+export async function deleteMedia(key: string): Promise<void> {
+  const k = safeKey(key);
+  try {
+    if (BUCKET) {
+      const { DeleteObjectCommand } = await import("@aws-sdk/client-s3");
+      await (await s3()).send(new DeleteObjectCommand({ Bucket: BUCKET, Key: k }));
+    } else await unlink(path.join(ROOT, k));
+  } catch {
+    /* already gone */
+  }
 }
 
 export async function mediaSize(key: string): Promise<number | null> {

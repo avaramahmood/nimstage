@@ -64,7 +64,7 @@ export default function LibraryPage() {
                   <span className="block truncate font-medium">{track.title}</span>
                   <span className="block truncate text-sm text-muted">{artist.name}</span>
                 </span>
-                <PlayToggle track={{ id: track.id, title: track.title, artist: artist.name, artistHandle: artist.handle, seed: track.id, durationSec: track.durationSec, previewSec: track.previewSec }} />
+                <PlayToggle track={{ id: track.id, title: track.title, artist: artist.name, artistHandle: artist.handle, seed: track.id, cover: track.coverKey, durationSec: track.durationSec, previewSec: track.previewSec }} />
               </li>
             ))}
           </ul>

@@ -44,7 +44,7 @@ export default function ShowPage() {
         <div className="grid content-start gap-6">
           {/* Header card */}
           <header className="relative overflow-hidden rounded-[28px] border border-line">
-            <Cover seed={show.id} className="absolute inset-0" />
+            <Cover seed={show.id} image={show.coverKey} className="absolute inset-0 h-full w-full" />
             <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-bg via-bg/65 to-transparent" />
             <div className="relative flex min-h-[260px] flex-col justify-end gap-3 p-6 sm:min-h-[320px] sm:p-8">
               <div className="flex items-center gap-3">

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { stepQueue } from "@shared/queue";
 
-export type PlayerTrack = { id: string; title: string; artist: string; artistHandle: string; seed: string; durationSec: number; showId?: string; previewSec: number };
+export type PlayerTrack = { id: string; title: string; artist: string; artistHandle: string; seed: string; cover?: string | null; durationSec: number; showId?: string; previewSec: number };
 
 type Core = {
   track: PlayerTrack | null;

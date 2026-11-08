@@ -8,6 +8,7 @@ import { HttpError } from "@srv/http";
 import { PaymentError } from "@srv/payments";
 import { auth } from "./routes/auth";
 import { account } from "./routes/account";
+import { images } from "./routes/images";
 import { payments } from "./routes/payments";
 import { media } from "./routes/media";
 import { shows } from "./routes/shows";
@@ -35,7 +36,7 @@ api.use("*", async (c, next) => {
   await next();
   if (!c.res.headers.has("cache-control")) c.res.headers.set("cache-control", "no-store");
 });
-for (const r of [auth, account, payments, media, shows, polls, social, studio, admin, pages]) api.route("/", r);
+for (const r of [auth, account, images, payments, media, shows, polls, social, studio, admin, pages]) api.route("/", r);
 // Cheap liveness probe for the host (no database call, so a slow database can't fail the deploy).
 api.get("/health", (c) => c.json({ ok: true }));
 api.notFound((c) => c.json({ error: "Not found" }, 404));

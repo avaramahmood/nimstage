@@ -58,7 +58,7 @@ export default function HomePage() {
             <li key={a.id}>
               <Reveal index={i}>
                 <Link href={`/artist/${a.handle}`} className="lift card flex flex-col items-center gap-3 p-5 text-center">
-                  <Cover seed={a.id} className="h-20 w-20 rounded-full ring-1 ring-white/10 md:h-24 md:w-24" />
+                  <Cover seed={a.id} image={a.avatarKey} className="h-20 w-20 rounded-full ring-1 ring-white/10 md:h-24 md:w-24" />
                   <span className="w-full min-w-0">
                     <span className="display display-sm flex items-center justify-center gap-1.5">
                       <span className="truncate">{a.name}</span>
@@ -82,9 +82,9 @@ export default function HomePage() {
             {recent.map(({ track, artist }) => (
               <li key={track.id} className="min-w-0">
                 <div className="relative">
-                  <Cover seed={track.id} className="aspect-square w-full rounded-[20px]" />
+                  <Cover seed={track.id} image={track.coverKey} className="aspect-square w-full rounded-[20px]" />
                   <div className="absolute bottom-2 right-2 z-10">
-                    <PlayToggle track={{ id: track.id, title: track.title, artist: artist.name, artistHandle: artist.handle, seed: track.id, durationSec: track.durationSec, previewSec: track.previewSec }} />
+                    <PlayToggle track={{ id: track.id, title: track.title, artist: artist.name, artistHandle: artist.handle, seed: track.id, cover: track.coverKey, durationSec: track.durationSec, previewSec: track.previewSec }} />
                   </div>
                 </div>
                 <p className="mt-2 truncate font-medium">{track.title}</p>

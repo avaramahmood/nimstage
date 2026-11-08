@@ -2,6 +2,7 @@
 // Studio, admin and access-control tests against a running demo-mode server with a fresh database.
 //   BASE=http://localhost:3001 npx tsx scripts/test-studio.mts
 import assert from "node:assert/strict";
+import sharp from "sharp";
 
 const base = process.env.BASE ?? "http://localhost:3001";
 let passed = 0;
@@ -100,6 +101,94 @@ await test("profile: payout address is checksum-validated; rights attestation is
   assert.equal((await call("/api/studio/profile", { body: ok, as: artist })).status, 200);
 });
 
+/* ------------------------------- profile extras ------------------------------- */
+await test("profile: tagline, accent and links are saved and validated (https only, at most 4)", async () => {
+  const base_ = { name: "Mira Vale", bio: "bio", genre: "Dream pop", payoutAddress: "NQ07 0000 0000 0000 0000 0000 0000 0000 0000", ownsRights: true };
+  const save = (extra: object) => call("/api/studio/profile", { body: { ...base_, ...extra }, as: artist });
+  assert.equal((await save({ tagline: "x".repeat(81) })).status, 400, "tagline too long");
+  assert.equal((await save({ accent: "chartreuse" })).status, 400, "accent must be from the palette");
+  assert.equal((await save({ links: [{ label: "Site", url: "http://example.com" }] })).status, 400, "http is refused");
+  assert.equal((await save({ links: [{ label: "x", url: "javascript:alert(1)" }] })).status, 400, "javascript: is refused");
+  assert.equal((await save({ links: [{ label: "x", url: "data:text/html,hi" }] })).status, 400, "data: is refused");
+  assert.equal((await save({ links: [{ label: "x", url: "https://user:pw@example.com/" }] })).status, 400, "credentials in a link are refused");
+  assert.equal((await save({ links: [{ label: "", url: "https://example.com" }] })).status, 400, "a link needs a label");
+  assert.equal((await save({ links: Array.from({ length: 5 }, (_, i) => ({ label: "L" + i, url: "https://example.com/" + i })) })).status, 400, "five links is too many");
+  const ok = await save({ tagline: "Songs from a fourth-floor window", accent: "violet", links: [{ label: "Bandcamp", url: "https://mira.example.com/music" }] });
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  const page = (await (await fetch(base + "/api/artists/miravale")).json()) as { artist: { tagline: string; accent: string; links: string } };
+  assert.equal(page.artist.tagline, "Songs from a fourth-floor window");
+  assert.equal(page.artist.accent, "violet");
+  assert.deepEqual(JSON.parse(page.artist.links), [{ label: "Bandcamp", url: "https://mira.example.com/music" }]);
+});
+
+/* ------------------------------- artwork ------------------------------- */
+const png = (w = 900, h = 600) => sharp({ create: { width: w, height: h, channels: 3, background: "#7a3cff" } }).png().toBuffer();
+const putArt = (path: string, bytes: Buffer | Uint8Array, as: Session | null, type = "image/png", name = "art.png") => {
+  const form = new FormData();
+  form.set("file", new File([new Uint8Array(bytes)], name, { type }));
+  return call(path, { method: "PUT", form, as });
+};
+const imgStatus = async (key: string) => (await fetch(base + "/api/img/" + key)).status;
+const gone = async (key: string) => {
+  for (let i = 0; i < 30 && (await imgStatus(key)) === 200; i++) await new Promise((r) => setTimeout(r, 100));
+  return imgStatus(key);
+};
+let avatarKey = "";
+await test("artwork: an avatar is resized to 512x512 WebP, served publicly with long caching", async () => {
+  const r = await putArt("/api/studio/art/avatar/me", await png(), artist);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  avatarKey = r.json.key;
+  assert.match(avatarKey, /^[0-9a-f-]{36}\.webp$/);
+  const img = await fetch(base + "/api/img/" + avatarKey); // no cookie: artwork is public
+  assert.equal(img.status, 200);
+  assert.equal(img.headers.get("content-type"), "image/webp");
+  assert.match(img.headers.get("cache-control") ?? "", /immutable/);
+  const meta = await sharp(Buffer.from(await img.arrayBuffer())).metadata();
+  assert.deepEqual([meta.format, meta.width, meta.height], ["webp", 512, 512]);
+  const page = (await (await fetch(base + "/api/artists/miravale")).json()) as { artist: { avatarKey: string } };
+  assert.equal(page.artist.avatarKey, avatarKey);
+});
+
+await test("artwork: banners are cropped to 1200x400; EXIF location data does not survive", async () => {
+  const withGps = await sharp({ create: { width: 2000, height: 1500, channels: 3, background: "#123456" } })
+    .jpeg()
+    .withExif({ IFD3: { GPSLatitudeRef: "N", GPSLatitude: "51/1 30/1 0/1" } })
+    .toBuffer();
+  assert.ok((await sharp(withGps).metadata()).exif, "the test image really has EXIF");
+  const r = await putArt("/api/studio/art/banner/me", withGps, artist, "image/jpeg", "photo.jpg");
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const stored = Buffer.from(await (await fetch(base + "/api/img/" + r.json.key)).arrayBuffer());
+  const meta = await sharp(stored).metadata();
+  assert.deepEqual([meta.width, meta.height], [1200, 400]);
+  assert.equal(meta.exif, undefined, "metadata is stripped");
+});
+
+await test("artwork: only real JPEG/PNG/WebP under 5 MB; only artists, only their own things", async () => {
+  assert.equal((await putArt("/api/studio/art/avatar/me", Buffer.from("<html><script>alert(1)</script></html>"), artist, "image/png")).status, 400, "HTML renamed to png");
+  const gif = await sharp({ create: { width: 10, height: 10, channels: 3, background: "#ffffff" } }).gif().toBuffer();
+  assert.equal((await putArt("/api/studio/art/avatar/me", gif, artist, "image/gif", "a.gif")).status, 400, "GIF is not an allowed format");
+  assert.equal((await putArt("/api/studio/art/avatar/me", Buffer.alloc(5 * 1024 * 1024 + 1, 1), artist)).status, 400, "over 5 MB");
+  assert.equal((await putArt("/api/studio/art/avatar/me", await png(), fan)).status, 403, "a fan is not an artist");
+  assert.equal((await putArt("/api/studio/art/avatar/me", await png(), null)).status, 401, "signed out");
+  assert.equal((await putArt("/api/studio/art/wallpaper/me", await png(), artist)).status, 404, "unknown kind");
+  assert.equal((await putArt("/api/studio/art/track/tr-kofistatic-0", await png(), artist)).status, 404, "another artist's track");
+  assert.equal((await putArt("/api/studio/art/show/s-kofi-1", await png(), artist)).status, 404, "another artist's show");
+  assert.equal(await imgStatus("..%2f..%2fpackage.json"), 404, "no path tricks");
+  assert.equal(await imgStatus("a".repeat(36) + ".webp"), 404, "unknown key");
+});
+
+await test("artwork: replacing deletes the old file; removing returns to generated art", async () => {
+  const again = await putArt("/api/studio/art/avatar/me", await png(300, 300), artist);
+  assert.equal(again.status, 200);
+  assert.notEqual(again.json.key, avatarKey);
+  assert.equal(await gone(avatarKey), 404, "the replaced image is gone");
+  assert.equal((await call("/api/studio/art/avatar/me", { method: "DELETE", as: fan })).status, 403);
+  assert.equal((await call("/api/studio/art/avatar/me", { method: "DELETE", as: artist })).status, 200);
+  const page = (await (await fetch(base + "/api/artists/miravale")).json()) as { artist: { avatarKey: string | null } };
+  assert.equal(page.artist.avatarKey, null);
+  assert.equal(await gone(again.json.key), 404);
+});
+
 /* ------------------------------- tracks ------------------------------- */
 let trackId = "";
 await test("tracks: upload works; rights, audio type, size and fields are validated", async () => {
@@ -157,6 +246,18 @@ await test("shows: the new show is public, ticketed audio is a preview until a v
   const earnings = (JSON.parse(earn) as { studio: { earnings: { total: number; tickets: number } } }).studio.earnings;
   assert.ok(earnings.total >= 3 * 100_000, `the verified 3 NIM ticket must show up in earnings (got ${earnings.total})`);
   assert.ok(earnings.tickets >= 3 * 100_000);
+});
+
+await test("artwork: track and show covers can be set on your own items", async () => {
+  const t = await putArt("/api/studio/art/track/" + trackId, await png(), artist);
+  assert.equal(t.status, 200, JSON.stringify(t.json));
+  const sh = await putArt("/api/studio/art/show/" + showId, await png(), artist);
+  assert.equal(sh.status, 200, JSON.stringify(sh.json));
+  const view = (await (await fetch(base + "/api/shows/" + showId)).json()) as { show: { coverKey: string } };
+  assert.equal(view.show.coverKey, sh.json.key);
+  const page = await (await fetch(base + "/api/artists/miravale")).text();
+  assert.ok(page.includes(t.json.key), "the track cover is part of the public artist page");
+  assert.equal((await call("/api/studio/art/track/" + trackId, { method: "DELETE", as: artist })).status, 200);
 });
 
 /* ------------------------------- live video ------------------------------- */

@@ -9,6 +9,7 @@ export type StageItem = {
   label: string;
   sub: string;
   seed: string;
+  image?: string | null; // uploaded artwork: used by the flat (no-WebGL) tiles
   onOpen: () => void;
 };
 

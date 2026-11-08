@@ -32,6 +32,11 @@ export const artists = pgTable("artists", {
   payoutAddress: text("payout_address").notNull(),
   verified: boolean("verified").notNull().default(false),
   status: text("status").notNull().default("active"), // active | suspended
+  avatarKey: text("avatar_key"), // uploaded image (webp) in media storage; null = generated art
+  bannerKey: text("banner_key"),
+  tagline: text("tagline").notNull().default(""),
+  links: text("links").notNull().default("[]"), // JSON [{label,url}], https only: see shared/artist.ts
+  accent: text("accent").notNull().default(""), // key of shared/artist.ts ACCENTS, or "" for the default
   createdAt: now(),
 });
 
@@ -53,6 +58,7 @@ export const tracks = pgTable("tracks", {
   previewSec: integer("preview_sec").notNull().default(30),
   mediaKey: text("media_key").notNull(),
   mime: text("mime").notNull().default("audio/mpeg"),
+  coverKey: text("cover_key"),
   plays: integer("plays").notNull().default(0),
   status: text("status").notNull().default("published"), // published | removed
   createdAt: now(),
@@ -69,6 +75,7 @@ export const shows = pgTable("shows", {
   trackId: text("track_id"), // premiere audio; live shows set this null
   kind: text("kind").notNull().default("premiere"), // premiere | live
   streamUrl: text("stream_url"), // HLS/audio URL for live shows (phase 2)
+  coverKey: text("cover_key"),
   status: text("status").notNull().default("scheduled"), // scheduled | removed
   createdAt: now(),
 });

@@ -145,6 +145,14 @@ export const DDL: string[] = [
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (poll_id, user_id)
   )`,
+  // Columns added after the first release: idempotent, so existing databases migrate on boot.
+  `ALTER TABLE artists ADD COLUMN IF NOT EXISTS avatar_key text`,
+  `ALTER TABLE artists ADD COLUMN IF NOT EXISTS banner_key text`,
+  `ALTER TABLE artists ADD COLUMN IF NOT EXISTS tagline text NOT NULL DEFAULT ''`,
+  `ALTER TABLE artists ADD COLUMN IF NOT EXISTS links text NOT NULL DEFAULT '[]'`,
+  `ALTER TABLE artists ADD COLUMN IF NOT EXISTS accent text NOT NULL DEFAULT ''`,
+  `ALTER TABLE tracks ADD COLUMN IF NOT EXISTS cover_key text`,
+  `ALTER TABLE shows ADD COLUMN IF NOT EXISTS cover_key text`,
   `CREATE TABLE IF NOT EXISTS auth_challenges (
     nonce text PRIMARY KEY,
     message text NOT NULL,

@@ -1,5 +1,6 @@
 import { useParams } from "react-router";
-import { BadgeCheck, Lock } from "lucide-react";
+import { accentColor, readLinks } from "@shared/artist";
+import { BadgeCheck, Lock, ExternalLink } from "lucide-react";
 import { Cover, EmptyState, SectionTitle } from "@/components/ui";
 import { BuyButton, TipButton } from "@/components/pay";
 import { TrackRow } from "@/components/player-ui";
@@ -24,17 +25,19 @@ export default function ArtistPage() {
   const { artist, own, tracks, shows, posts, tiers, polls, followers, following, supporter } = q.data!;
 
   // Playing any track queues the whole list, so the next one starts when it ends.
-  const queue: PlayerTrack[] = tracks.map((t) => ({ id: t.id, title: t.title, artist: artist.name, artistHandle: artist.handle, seed: t.id, durationSec: t.durationSec, previewSec: t.previewSec }));
+  const queue: PlayerTrack[] = tracks.map((t) => ({ id: t.id, title: t.title, artist: artist.name, artistHandle: artist.handle, seed: t.id, cover: t.coverKey, durationSec: t.durationSec, previewSec: t.previewSec }));
+  const accent = accentColor(artist.accent);
+  const links = readLinks(artist.links);
 
   return (
     <article className="wrap pt-6 md:pt-8">
-      <header className="card overflow-hidden">
+      <header className="card overflow-hidden" style={accent ? { borderColor: `${accent}66`, boxShadow: `0 28px 80px -44px ${accent}` } : undefined}>
         <div className="relative">
-          <Cover seed={artist.id} className="h-44 w-full sm:h-60" />
+          <Cover seed={artist.id} image={artist.bannerKey} className="h-44 w-full sm:h-60" />
           {artist.status !== "active" && <p className="sticker absolute left-4 top-4 z-10">Suspended</p>}
         </div>
         <div className="flex flex-col gap-5 px-6 pb-6 sm:px-8 sm:pb-8 md:flex-row md:items-end">
-          <Cover seed={`${artist.id}-avatar`} className="relative z-10 -mt-14 h-28 w-28 shrink-0 rounded-full ring-4 ring-surface sm:-mt-16 sm:h-32 sm:w-32" />
+          <Cover seed={`${artist.id}-avatar`} image={artist.avatarKey} className="relative z-10 -mt-14 h-28 w-28 shrink-0 rounded-full ring-4 ring-surface sm:-mt-16 sm:h-32 sm:w-32" />
           <div className="min-w-0 flex-1">
             <p className="label">
               {artist.genre} · {followers} {followers === 1 ? "follower" : "followers"}
@@ -43,7 +46,20 @@ export default function ArtistPage() {
               {artist.name}
               {artist.verified && <BadgeCheck aria-label="Verified artist" size={28} className="text-blue" />}
             </h1>
+            {artist.tagline && <p className="mt-1 text-lg">{artist.tagline}</p>}
             {artist.bio && <p className="mt-2 max-w-[60ch] text-muted">{artist.bio}</p>}
+            {links.length > 0 && (
+              <ul aria-label="Links" className="mt-3 flex flex-wrap gap-2">
+                {links.map((l) => (
+                  <li key={l.url}>
+                    <a href={l.url} target="_blank" rel="noopener noreferrer nofollow ugc" className="btn btn-ghost btn-sm">
+                      {l.label}
+                      <ExternalLink aria-hidden="true" size={14} />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-3">
             {!own && <FollowButton artistId={artist.id} initial={following} />}

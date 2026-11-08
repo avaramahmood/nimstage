@@ -3,9 +3,11 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@srv/db";
 import { HttpError, body, rateLimit, requireArtist, requireUser } from "@srv/http";
-import { getArtistByUser, getTiers, getTrack } from "@srv/data";
+import { getArtistByUser, getShow, getTiers, getTrack } from "@srv/data";
+import { processImage, type ArtKind } from "@srv/images";
+import { ACCENT_KEYS, MAX_LINKS, isSafeLink, type ArtistLink } from "@shared/artist";
 import { parseAddress } from "@srv/nimiq";
-import { ALLOWED_AUDIO, MAX_UPLOAD_BYTES, saveMedia } from "@srv/storage";
+import { ALLOWED_AUDIO, MAX_UPLOAD_BYTES, deleteMedia, saveMedia } from "@srv/storage";
 import { MAX_NIM, nimToLuna } from "@shared/units";
 import { newId } from "@srv/ids";
 
@@ -17,6 +19,12 @@ const Profile = z.object({
   name: z.string().trim().min(2).max(60),
   bio: z.string().trim().max(600).default(""),
   genre: z.string().trim().min(2).max(30).default("Indie"),
+  tagline: z.string().trim().max(80, "Keep the tagline under 80 characters").default(""),
+  accent: z.enum([...ACCENT_KEYS, ""]).default(""),
+  links: z
+    .array(z.object({ label: z.string().trim().min(1, "Give each link a label").max(24, "Link labels are 24 characters at most"), url: z.string().trim().refine(isSafeLink, "Links must be full https:// addresses") }))
+    .max(MAX_LINKS, `At most ${MAX_LINKS} links`)
+    .default([]),
   payoutAddress: z.string().trim().min(10, "Enter your Nimiq payout address (starts with NQ)").max(60, "That address is too long"),
   ownsRights: z.literal(true, { error: "Confirm you own the music you upload" }),
 });
@@ -30,15 +38,69 @@ studio.post("/studio/profile", async (c) => {
   const existing = await getArtistByUser(user.id);
 
   if (existing) {
-    await db.update(schema.artists).set({ name: b.name, bio: b.bio, genre: b.genre, payoutAddress: payout }).where(eq(schema.artists.id, existing.id));
+    await db.update(schema.artists).set({ name: b.name, bio: b.bio, genre: b.genre, payoutAddress: payout, tagline: b.tagline, accent: b.accent, links: JSON.stringify(b.links satisfies ArtistLink[]) }).where(eq(schema.artists.id, existing.id));
     return c.json({ handle: existing.handle });
   }
   if (!b.handle) throw new HttpError("Pick a handle");
   const [taken] = await db.select({ id: schema.artists.id }).from(schema.artists).where(eq(schema.artists.handle, b.handle)).limit(1);
   if (taken) throw new HttpError("That handle is taken");
-  await db.insert(schema.artists).values({ id: newId(), userId: user.id, handle: b.handle, name: b.name, bio: b.bio, genre: b.genre, payoutAddress: payout });
+  await db.insert(schema.artists).values({ id: newId(), userId: user.id, handle: b.handle, name: b.name, bio: b.bio, genre: b.genre, payoutAddress: payout, tagline: b.tagline, accent: b.accent, links: JSON.stringify(b.links) });
   if (user.role === "fan") await db.update(schema.users).set({ role: "artist" }).where(eq(schema.users.id, user.id));
   return c.json({ handle: b.handle });
+});
+
+/* ------------------------------- artwork ------------------------------- */
+// PUT /studio/art/:kind/:id   (multipart "file")   replaces the image
+// DELETE /studio/art/:kind/:id                     goes back to the generated art
+// avatar and banner belong to your own profile (id is ignored); track and show need one you own.
+const ART_KINDS = new Set<ArtKind>(["avatar", "banner", "track", "show"]);
+
+async function artTarget(kind: ArtKind, id: string, artistId: string) {
+  const db = await getDb();
+  if (kind === "avatar" || kind === "banner") {
+    const col = kind === "avatar" ? "avatarKey" : "bannerKey";
+    const [row] = await db.select({ key: schema.artists[col] }).from(schema.artists).where(eq(schema.artists.id, artistId)).limit(1);
+    return { old: row?.key ?? null, set: (key: string | null) => db.update(schema.artists).set({ [col]: key }).where(eq(schema.artists.id, artistId)) };
+  }
+  if (kind === "track") {
+    const t = await getTrack(id);
+    if (!t || t.artistId !== artistId) throw new HttpError("That track isn't yours", 404);
+    return { old: t.coverKey, set: (key: string | null) => db.update(schema.tracks).set({ coverKey: key }).where(eq(schema.tracks.id, t.id)) };
+  }
+  const s = await getShow(id);
+  if (!s || s.artistId !== artistId) throw new HttpError("That show isn't yours", 404);
+  return { old: s.coverKey, set: (key: string | null) => db.update(schema.shows).set({ coverKey: key }).where(eq(schema.shows.id, s.id)) };
+}
+
+studio.put("/studio/art/:kind/:id", async (c) => {
+  const { artist } = await requireArtist(c);
+  rateLimit(`art:${artist.id}`, 20, 10 * 60_000);
+  const kind = c.req.param("kind") as ArtKind;
+  if (!ART_KINDS.has(kind)) throw new HttpError("Unknown artwork type", 404);
+  const target = await artTarget(kind, c.req.param("id"), artist.id);
+  let form: FormData;
+  try {
+    form = await c.req.formData();
+  } catch {
+    throw new HttpError("Invalid upload");
+  }
+  const file = form.get("file");
+  if (!(file instanceof File)) throw new HttpError("Choose an image");
+  const webp = await processImage(Buffer.from(await file.arrayBuffer()), kind);
+  const key = await saveMedia(webp, "webp");
+  await target.set(key);
+  if (target.old) void deleteMedia(target.old);
+  return c.json({ key });
+});
+
+studio.delete("/studio/art/:kind/:id", async (c) => {
+  const { artist } = await requireArtist(c);
+  const kind = c.req.param("kind") as ArtKind;
+  if (!ART_KINDS.has(kind)) throw new HttpError("Unknown artwork type", 404);
+  const target = await artTarget(kind, c.req.param("id"), artist.id);
+  await target.set(null);
+  if (target.old) void deleteMedia(target.old);
+  return c.json({ ok: true });
 });
 
 /* ------------------------------- tracks ------------------------------- */

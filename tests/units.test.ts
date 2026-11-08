@@ -6,6 +6,7 @@ import { buildIcs, googleCalendarUrl, icsDate, icsEscape } from "@shared/calenda
 import { coverColors, coverStyle, fmtDuration, hash } from "@shared/format";
 import { checkEnv } from "@srv/env";
 import { joinWindow } from "@shared/live";
+import { ACCENTS, MAX_LINKS, accentColor, isSafeLink, readLinks } from "@shared/artist";
 import { formatNim, lunaToNim, MAX_LUNA, MAX_NIM, nimToLuna, normalizeAddress, shortAddress, TIP_PRESETS_NIM } from "@shared/units";
 import { readBars } from "@/lib/spectrum";
 import { queueIndex, stepQueue } from "@shared/queue";
@@ -144,6 +145,30 @@ test("live: who may join a video show, and when", () => {
   assert.equal(joinWindow(show, "viewer", start + 30 * min + 31 * min), "ended");
   assert.equal(joinWindow(show, "host", start + 30 * min + 59 * min), "ok");
   assert.equal(joinWindow(show, "host", start + 30 * min + 61 * min), "ended");
+});
+test("artist profile: only https links with a label survive, and a bad stored row never throws", () => {
+  assert.equal(isSafeLink("https://bandcamp.com/mira"), true);
+  for (const bad of ["http://example.com", "javascript:alert(1)", "data:text/html,hi", "//example.com", "https://user:pw@example.com", "https://localhost", "not a url", "https://" + "a".repeat(200) + ".com"]) assert.equal(isSafeLink(bad), false, bad);
+  const stored = JSON.stringify([
+    { label: "Good", url: "https://example.com/a" },
+    { label: "", url: "https://example.com/b" },
+    { label: "Evil", url: "javascript:alert(1)" },
+    { label: "x".repeat(25), url: "https://example.com/c" },
+    { nope: true },
+    ...Array.from({ length: 6 }, (_, i) => ({ label: "L" + i, url: "https://example.com/" + i })),
+  ]);
+  const links = readLinks(stored);
+  assert.equal(links[0].label, "Good");
+  assert.equal(links.length, MAX_LINKS);
+  assert.ok(links.every((l) => isSafeLink(l.url) && l.label.length > 0));
+  for (const junk of [null, undefined, "", "{", "null", "42", '{"a":1}']) assert.deepEqual(readLinks(junk), [], String(junk));
+});
+test("artist profile: accents come from a fixed palette", () => {
+  assert.equal(accentColor("violet"), ACCENTS.violet);
+  assert.equal(accentColor(""), null);
+  assert.equal(accentColor("hotpink"), null);
+  assert.equal(accentColor(undefined), null);
+  assert.ok(Object.values(ACCENTS).every((c) => /^#[0-9a-f]{6}$/i.test(c)));
 });
 test("units: address helpers", () => {
   assert.equal(normalizeAddress("nq07 0000 0000"), "NQ070000" + "0000");

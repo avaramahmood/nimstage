@@ -172,4 +172,17 @@ describe("behaviour in the rendered app", () => {
     const view = await renderPage("/receipts");
     await waitFor(() => expect(view.container.textContent).toMatch(/No payments yet|Confirmed payments/));
   }, 30_000);
+
+  it("studio: the profile editor offers artwork upload, an accent palette and links; the public page shows the extras", async () => {
+    await login("artist");
+    const view = await renderPage("/studio/profile");
+    await waitFor(() => expect(view.container.textContent).toContain("Artwork"));
+    const names = Array.from(view.container.querySelectorAll("button")).map((b) => b.textContent?.trim());
+    expect(names.filter((n) => /Upload|Replace/.test(n ?? "")).length).toBe(2);
+    expect(view.container.querySelectorAll('[role="radio"]').length).toBe(7);
+    const input = view.container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    expect(input.accept).toBe("image/jpeg,image/png,image/webp");
+    fireEvent.click(Array.from(view.container.querySelectorAll("button")).find((b) => /Add a link/.test(b.textContent ?? ""))!);
+    expect(view.container.querySelector('input[placeholder="https://"]')).not.toBeNull();
+  }, 30_000);
 });

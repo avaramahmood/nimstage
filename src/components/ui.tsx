@@ -1,8 +1,15 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { coverStyle } from "@shared/format";
+import { imgUrl } from "@/lib/img";
 
-/** Soft gradient-mesh art (pure CSS gradients, no image, no filter). Callers set size and rounding. */
-export function Cover({ seed, className = "" }: { seed: string; className?: string }) {
+/**
+ * Artwork. If the artist uploaded an image it is shown; otherwise (or if it fails to load) the soft
+ * gradient-mesh art generated from `seed` (pure CSS, no filter). Callers set size and rounding.
+ */
+export function Cover({ seed, className = "", image }: { seed: string; className?: string; image?: string | null }) {
+  const [failed, setFailed] = useState(false);
+  const src = imgUrl(image);
+  if (src && !failed) return <img src={src} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} className={`${className} object-cover`} />;
   return <div aria-hidden="true" className={className} style={coverStyle(seed)} />;
 }
 

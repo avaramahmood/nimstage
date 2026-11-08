@@ -129,8 +129,8 @@ export function Ticket3D({ title, meta, price, serial, fallback }: TicketData & 
 }
 
 type Props = {
-  artists: { id: string; handle: string; name: string; genre: string }[];
-  tracks: { track: { id: string; title: string; durationSec: number; previewSec: number }; artist: { name: string; handle: string } }[];
+  artists: { id: string; handle: string; name: string; genre: string; avatarKey?: string | null }[];
+  tracks: { track: { id: string; title: string; durationSec: number; previewSec: number; coverKey?: string | null }; artist: { name: string; handle: string } }[];
 };
 
 /** Ribbons + a ring of every artist and track. Borderless and edge-faded so it melts into the page. */
@@ -160,14 +160,14 @@ export function Stage({ artists, tracks }: Props) {
   }, [visible, player, live]);
 
   const items = useMemo<StageItem[]>(() => {
-    const list: PlayerTrack[] = tracks.map(({ track, artist }) => ({ id: track.id, title: track.title, artist: artist.name, artistHandle: artist.handle, seed: track.id, durationSec: track.durationSec, previewSec: track.previewSec }));
+    const list: PlayerTrack[] = tracks.map(({ track, artist }) => ({ id: track.id, title: track.title, artist: artist.name, artistHandle: artist.handle, seed: track.id, cover: track.coverKey, durationSec: track.durationSec, previewSec: track.previewSec }));
     const out: StageItem[] = [];
     const n = Math.max(artists.length, tracks.length);
     for (let i = 0; i < n; i++) {
       const a = artists[i];
-      if (a) out.push({ key: `a-${a.id}`, kind: "artist", label: a.name, sub: a.genre, seed: a.id, onOpen: () => nav(`/artist/${a.handle}`) });
+      if (a) out.push({ key: `a-${a.id}`, kind: "artist", label: a.name, sub: a.genre, seed: a.id, image: a.avatarKey, onOpen: () => nav(`/artist/${a.handle}`) });
       const t = tracks[i];
-      if (t) out.push({ key: `t-${t.track.id}`, kind: "track", label: t.track.title, sub: `▶ ${t.artist.name}`, seed: t.track.id, onOpen: () => player.play(list[i], list) });
+      if (t) out.push({ key: `t-${t.track.id}`, kind: "track", label: t.track.title, sub: `▶ ${t.artist.name}`, seed: t.track.id, image: t.track.coverKey, onOpen: () => player.play(list[i], list) });
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -198,7 +198,7 @@ function Flat({ items }: { items: StageItem[] }) {
       <div className="rail">
         {items.map((it) => (
           <button key={it.key} type="button" onClick={it.onOpen} className="lift card w-[150px] shrink-0 p-3 text-left">
-            <Cover seed={it.seed} className={`aspect-square w-full ${it.kind === "artist" ? "rounded-full" : "rounded-xl"}`} />
+            <Cover seed={it.seed} image={it.image} className={`aspect-square w-full ${it.kind === "artist" ? "rounded-full" : "rounded-xl"}`} />
             <span className="mt-2 block truncate font-medium">{it.label}</span>
             <span className="block truncate text-xs text-muted">{it.sub}</span>
           </button>

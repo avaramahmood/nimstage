@@ -42,7 +42,7 @@ export default function DiscoverPage() {
               {artists.map((a) => (
                 <li key={a.id}>
                   <Link href={`/artist/${a.handle}`} className="lift card grid grid-cols-[64px_minmax(0,1fr)] items-center gap-4 p-4">
-                    <Cover seed={a.id} className="h-16 w-16 rounded-full" />
+                    <Cover seed={a.id} image={a.avatarKey} className="h-16 w-16 rounded-full" />
                     <span className="min-w-0">
                       <span className="display display-sm block truncate">{a.name}</span>
                       <span className="text-sm text-muted">{a.genre}</span>
@@ -59,12 +59,12 @@ export default function DiscoverPage() {
             <ul className="grid gap-2 md:grid-cols-2">
               {tracks.map(({ track, artist }) => (
                 <li key={track.id} className="card grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 p-3">
-                  <Cover seed={track.id} className="h-14 w-14 rounded-xl" />
+                  <Cover seed={track.id} image={track.coverKey} className="h-14 w-14 rounded-xl" />
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{track.title}</span>
                     <span className="block truncate text-sm text-muted">{artist.name} · {formatNim(track.priceLuna)}</span>
                   </span>
-                  <PlayToggle track={{ id: track.id, title: track.title, artist: artist.name, artistHandle: artist.handle, seed: track.id, durationSec: track.durationSec, previewSec: track.previewSec }} />
+                  <PlayToggle track={{ id: track.id, title: track.title, artist: artist.name, artistHandle: artist.handle, seed: track.id, cover: track.coverKey, durationSec: track.durationSec, previewSec: track.previewSec }} />
                 </li>
               ))}
             </ul>

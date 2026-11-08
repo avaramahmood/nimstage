@@ -45,7 +45,7 @@ export function TrackRow({
   action,
 }: {
   index: number;
-  track: { id: string; title: string; durationSec: number; previewSec: number };
+  track: { id: string; title: string; durationSec: number; previewSec: number; coverKey?: string | null };
   artist: { name: string; handle: string };
   priceLabel: string;
   locked: boolean;
@@ -55,10 +55,10 @@ export function TrackRow({
 }) {
   const p = usePlayer();
   const active = p.track?.id === track.id;
-  const pt: PlayerTrack = { id: track.id, title: track.title, artist: artist.name, artistHandle: artist.handle, seed: track.id, durationSec: track.durationSec, previewSec: track.previewSec, showId };
+  const pt: PlayerTrack = { id: track.id, title: track.title, artist: artist.name, artistHandle: artist.handle, seed: track.id, cover: track.coverKey, durationSec: track.durationSec, previewSec: track.previewSec, showId };
   return (
     <li className={`grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl px-3 py-2.5 transition-colors ${active ? "bg-white/[0.07]" : "hover:bg-white/[0.04]"}`}>
-      <Cover seed={track.id} className="h-10 w-10 rounded-xl" />
+      <Cover seed={track.id} image={track.coverKey} className="h-10 w-10 rounded-xl" />
       <div className="min-w-0">
         <p className="flex items-center gap-2 truncate font-medium">
           {active && p.playing && <Eq />}
@@ -84,7 +84,7 @@ export function MiniPlayer() {
   return (
     <div className="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] left-1/2 z-40 flex w-[calc(100%-24px)] max-w-[496px] -translate-x-1/2 items-center gap-2 rounded-[24px] border border-line bg-surface-2 py-2 pl-3 pr-2 shadow-[0_20px_50px_-20px_rgb(0_0_0/0.8)]">
       <button type="button" onClick={() => p.setOpen(true)} className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl text-left" aria-label={`Open player, ${p.track.title} by ${p.track.artist}`}>
-        <Cover seed={p.track.seed} className="h-12 w-12 shrink-0 rounded-xl" />
+        <Cover seed={p.track.seed} image={p.track.cover} className="h-12 w-12 shrink-0 rounded-xl" />
         <span className="min-w-0">
           <span className="flex items-center gap-2 font-medium">
             <Eq paused={!p.playing} />
@@ -187,7 +187,7 @@ export function PlayerSheet() {
           className={`vinyl ${p.playing ? "playing" : ""} grid h-48 w-48 place-items-center rounded-full shadow-[0_24px_60px_-20px_rgb(0_0_0/0.9)]`}
           style={{ background: "repeating-radial-gradient(circle, #1a1a22 0 2px, #101016 2px 4px)" }}
         >
-          <Cover seed={t.seed} className="h-[34%] w-[34%] rounded-full" />
+          <Cover seed={t.seed} image={t.cover} className="h-[34%] w-[34%] rounded-full" />
         </div>
       </div>
 

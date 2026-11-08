@@ -2,6 +2,7 @@ import { Plus } from "lucide-react";
 import { Link } from "@/components/link";
 import { EmptyState, SectionTitle } from "@/components/ui";
 import { ClosePollButton, ProfileForm, RemoveButton } from "@/components/studio-forms";
+import { ArtworkEditor } from "@/components/artwork-editor";
 import { stateOf } from "@/components/page-state";
 import { useStudio } from "@/lib/queries";
 import { useNow, useTitle } from "@/lib/use-now";
@@ -75,7 +76,10 @@ export default function StudioPage() {
                   <span className="block truncate font-medium">{sh.title}</span>
                   <span className="block font-mono text-xs uppercase text-muted">{showState(sh, now)} · {fmtWhen(sh.startsAt)} · {formatNim(sh.priceLuna)}</span>
                 </Link>
-                <RemoveButton kind="show" id={sh.id} label={sh.title} />
+                <span className="flex items-center gap-1">
+                  <ArtworkEditor compact kind="show" id={sh.id} seed={sh.id} current={sh.coverKey} label={sh.title} />
+                  <RemoveButton kind="show" id={sh.id} label={sh.title} />
+                </span>
               </li>
             ))}
           </ul>
@@ -92,7 +96,12 @@ export default function StudioPage() {
                   <span className="block truncate font-medium">{t.title}{t.status === "removed" ? " (removed)" : ""}</span>
                   <span className="block font-mono text-xs uppercase text-muted">{formatNim(t.priceLuna)} · {t.plays} plays</span>
                 </span>
-                {t.status === "published" && <RemoveButton kind="track" id={t.id} label={t.title} />}
+                {t.status === "published" && (
+                  <span className="flex items-center gap-1">
+                    <ArtworkEditor compact kind="track" id={t.id} seed={t.id} current={t.coverKey} label={t.title} />
+                    <RemoveButton kind="track" id={t.id} label={t.title} />
+                  </span>
+                )}
               </li>
             ))}
           </ul>

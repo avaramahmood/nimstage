@@ -2,6 +2,7 @@ import { useRouter } from "@/lib/nav";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/toast";
+import { ACCENTS, ACCENT_KEYS, MAX_LINKS, type ArtistLink } from "@shared/artist";
 
 function useSubmit() {
   const router = useRouter();
@@ -45,10 +46,11 @@ function FormShell({ onSubmit, error, busy, cta, children }: { onSubmit: (e: For
   );
 }
 
-export function ProfileForm({ initial }: { initial?: { handle: string; name: string; bio: string; genre: string; payoutAddress: string } }) {
+export function ProfileForm({ initial }: { initial?: { handle: string; name: string; bio: string; genre: string; payoutAddress: string; tagline?: string; accent?: string; links?: ArtistLink[] } }) {
   const { busy, error, run } = useSubmit();
-  const [f, setF] = useState({ handle: initial?.handle ?? "", name: initial?.name ?? "", bio: initial?.bio ?? "", genre: initial?.genre ?? "", payoutAddress: initial?.payoutAddress ?? "", ownsRights: !!initial });
-  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
+  const [f, setF] = useState({ handle: initial?.handle ?? "", name: initial?.name ?? "", bio: initial?.bio ?? "", genre: initial?.genre ?? "", tagline: initial?.tagline ?? "", accent: initial?.accent ?? "", links: initial?.links ?? ([] as ArtistLink[]), payoutAddress: initial?.payoutAddress ?? "", ownsRights: !!initial });
+  const set = (k: "handle" | "name" | "bio" | "genre" | "tagline" | "payoutAddress") => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
+  const setLink = (i: number, patch: Partial<ArtistLink>) => setF((x) => ({ ...x, links: x.links.map((l, j) => (j === i ? { ...l, ...patch } : l)) }));
   return (
     <FormShell
       busy={busy}
@@ -62,7 +64,49 @@ export function ProfileForm({ initial }: { initial?: { handle: string; name: str
       {!initial && <Field label="Handle" hint="Your link: /artist/handle. Letters, numbers and _ only."><input className="field" required minLength={3} maxLength={24} value={f.handle} onChange={set("handle")} autoCapitalize="none" /></Field>}
       <Field label="Artist or band name"><input className="field" required minLength={2} maxLength={60} value={f.name} onChange={set("name")} /></Field>
       <Field label="Genre"><input className="field" required minLength={2} maxLength={30} value={f.genre} onChange={set("genre")} placeholder="Dream pop, Afrobeat, Folk…" /></Field>
+      <Field label="Tagline" hint="One line under your name. Optional."><input className="field" maxLength={80} value={f.tagline} onChange={set("tagline")} placeholder="Songs from a fourth-floor window" /></Field>
       <Field label="Bio"><textarea className="field" rows={4} maxLength={600} value={f.bio} onChange={set("bio")} /></Field>
+      <fieldset>
+        <legend className="label">Accent colour</legend>
+        <p className="mt-1 text-sm text-muted">A glow around your page. Optional.</p>
+        <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Accent colour">
+          {[["", "Default"] as const, ...ACCENT_KEYS.map((k) => [k, k[0].toUpperCase() + k.slice(1)] as const)].map(([key, name]) => (
+            <button
+              key={key || "default"}
+              type="button"
+              role="radio"
+              aria-checked={f.accent === key}
+              aria-label={name}
+              onClick={() => setF((x) => ({ ...x, accent: key }))}
+              className={`grid h-11 w-11 place-items-center rounded-full border-2 ${f.accent === key ? "border-ink" : "border-line"}`}
+            >
+              <span className="h-6 w-6 rounded-full border border-white/20" style={{ background: key ? ACCENTS[key as keyof typeof ACCENTS] : "transparent" }} />
+            </button>
+          ))}
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend className="label">Links</legend>
+        <p className="mt-1 text-sm text-muted">Up to {MAX_LINKS}. Full https:// addresses only.</p>
+        <div className="mt-2 grid gap-3">
+          {f.links.map((l, i) => (
+            <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+              <div className="grid gap-2">
+                <input className="field" aria-label={`Link ${i + 1} label`} placeholder="Label, e.g. Bandcamp" maxLength={24} value={l.label} onChange={(e) => setLink(i, { label: e.target.value })} />
+                <input className="field" aria-label={`Link ${i + 1} address`} placeholder="https://" inputMode="url" autoCapitalize="none" spellCheck={false} maxLength={200} value={l.url} onChange={(e) => setLink(i, { url: e.target.value })} />
+              </div>
+              <button type="button" className="btn btn-ghost btn-sm" aria-label={`Remove link ${i + 1}`} onClick={() => setF((x) => ({ ...x, links: x.links.filter((_, j) => j !== i) }))}>
+                Remove
+              </button>
+            </div>
+          ))}
+          {f.links.length < MAX_LINKS && (
+            <button type="button" className="btn btn-ghost btn-sm w-fit" onClick={() => setF((x) => ({ ...x, links: [...x.links, { label: "", url: "https://" }] }))}>
+              Add a link
+            </button>
+          )}
+        </div>
+      </fieldset>
       <Field label="Payout address" hint="Fans pay this Nimiq address directly. Double-check it: payments can't be reversed."><input className="field font-mono" required value={f.payoutAddress} onChange={set("payoutAddress")} placeholder="NQ.." autoCapitalize="characters" spellCheck={false} /></Field>
       <label className="flex gap-3 rounded-2xl border border-line p-3">
         <input type="checkbox" className="mt-1 h-5 w-5 accent-[#fa5d29]" checked={f.ownsRights} onChange={(e) => setF((x) => ({ ...x, ownsRights: e.target.checked }))} />

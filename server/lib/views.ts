@@ -34,7 +34,7 @@ export async function artistView(handle: string, ctx: AccessCtx) {
     own: ctx.ownArtistId === artist.id,
     tracks: tracks.map((t) => {
       const exclusive = (gating.get(t.id) ?? []).length > 0;
-      return { id: t.id, title: t.title, durationSec: t.durationSec, previewSec: t.previewSec, priceLuna: t.priceLuna, exclusive, locked: !canAccess(ctx, "track", t, gating.get(t.id) ?? []) };
+      return { id: t.id, title: t.title, coverKey: t.coverKey, durationSec: t.durationSec, previewSec: t.previewSec, priceLuna: t.priceLuna, exclusive, locked: !canAccess(ctx, "track", t, gating.get(t.id) ?? []) };
     }),
     shows,
     // Locked supporter-only posts are sent WITHOUT their text.

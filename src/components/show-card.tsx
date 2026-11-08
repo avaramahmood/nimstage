@@ -73,7 +73,7 @@ export function ShowPoster({ show }: { show: ShowCard }) {
   return (
     <Link href={`/show/${show.id}`} className="lift card block w-[260px] overflow-hidden md:w-auto">
       <div className="relative">
-        <Cover seed={show.id} className="aspect-[4/3] w-full" />
+        <Cover seed={show.id} image={show.coverKey} className="aspect-[4/3] w-full" />
         <div className="absolute left-3 top-3 z-10">
           <StateSticker state={state} />
         </div>
