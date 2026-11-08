@@ -21,6 +21,13 @@ export function ShowHero({ show }: { show: ShowCard }) {
   const live = state === "live";
   return (
     <section aria-labelledby="hero-title" className="relative overflow-hidden rounded-[28px] border border-line bg-surface/60">
+      {/* the artist's own cover, faded into the card; text keeps its contrast because the cover is dimmed */}
+      {show.coverKey && (
+        <>
+          <Cover seed={show.id} image={show.coverKey} className="pointer-events-none absolute inset-0 h-full w-full opacity-35" />
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-t from-surface via-surface/75 to-surface/30" />
+        </>
+      )}
       {/* ambient glow tinted by the show's own colours: a plain gradient, no blur filter */}
       <div aria-hidden="true" className="pointer-events-none absolute -right-20 -top-20 h-[460px] w-[460px] rounded-full" style={{ background: `radial-gradient(closest-side, ${coverColors(show.id)[0]}55, transparent)` }} />
       <div className="relative grid items-center gap-2 p-6 sm:p-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-8 lg:p-12">
@@ -61,7 +68,7 @@ export function ShowHero({ show }: { show: ShowCard }) {
         </div>
 
         <div className="order-1 lg:order-2">
-          <HeroDisc seed={show.id} fallback={<Vinyl seed={show.id} />} />
+          <HeroDisc seed={show.id} image={show.coverKey} fallback={<Vinyl seed={show.id} />} />
         </div>
       </div>
     </section>

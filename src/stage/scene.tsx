@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { coverColors } from "@shared/format";
+import { imgUrl } from "@/lib/img";
 
 export type StageItem = {
   key: string;
@@ -38,6 +39,27 @@ function meshGradient(ctx: CanvasRenderingContext2D, size: number, seed: string)
   }
 }
 
+/** Loads an uploaded artwork for a canvas texture. Resolves null on any failure: the generated art stays. */
+function loadImage(key: string | null | undefined): Promise<HTMLImageElement | null> {
+  const src = imgUrl(key);
+  if (!src) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+/** Draws `img` to fill the box (like object-fit: cover). */
+function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number) {
+  const k = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+  const sw = w / k;
+  const sh = h / k;
+  ctx.drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, x, y, w, h);
+}
+
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, r);
@@ -50,34 +72,47 @@ function tileTexture(item: StageItem) {
   cv.width = W;
   cv.height = H;
   const ctx = cv.getContext("2d")!;
-  ctx.save();
-  roundRect(ctx, 0, 0, W, H, 28);
-  ctx.clip();
-  ctx.fillStyle = "#14141f";
-  ctx.fillRect(0, 0, W, H);
-  ctx.save();
-  roundRect(ctx, 12, 12, W - 24, W - 24, item.kind === "artist" ? (W - 24) / 2 : 18);
-  ctx.clip();
-  ctx.translate(12, 12);
-  meshGradient(ctx, W - 24, item.seed);
-  ctx.restore();
-  ctx.fillStyle = "#f4f0e8";
-  ctx.font = "700 24px Outfit, system-ui, sans-serif";
-  ctx.textBaseline = "alphabetic";
-  const label = item.label.length > 17 ? `${item.label.slice(0, 16)}…` : item.label;
-  ctx.fillText(label, 18, H - 42);
-  ctx.fillStyle = "#a6a6b8";
-  ctx.font = "500 17px Outfit, system-ui, sans-serif";
-  const sub = item.sub.length > 24 ? `${item.sub.slice(0, 23)}…` : item.sub;
-  ctx.fillText(sub, 18, H - 18);
-  ctx.restore();
-  ctx.strokeStyle = "rgba(255,255,255,.12)";
-  ctx.lineWidth = 2;
-  roundRect(ctx, 1, 1, W - 2, H - 2, 28);
-  ctx.stroke();
+  const paint = (img: HTMLImageElement | null) => {
+    ctx.clearRect(0, 0, W, H);
+    ctx.save();
+    roundRect(ctx, 0, 0, W, H, 28);
+    ctx.clip();
+    ctx.fillStyle = "#14141f";
+    ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    roundRect(ctx, 12, 12, W - 24, W - 24, item.kind === "artist" ? (W - 24) / 2 : 18);
+    ctx.clip();
+    if (img) drawCover(ctx, img, 12, 12, W - 24, W - 24);
+    else {
+      ctx.translate(12, 12);
+      meshGradient(ctx, W - 24, item.seed);
+    }
+    ctx.restore();
+    ctx.fillStyle = "#f4f0e8";
+    ctx.font = "700 24px Outfit, system-ui, sans-serif";
+    ctx.textBaseline = "alphabetic";
+    const label = item.label.length > 17 ? `${item.label.slice(0, 16)}…` : item.label;
+    ctx.fillText(label, 18, H - 42);
+    ctx.fillStyle = "#a6a6b8";
+    ctx.font = "500 17px Outfit, system-ui, sans-serif";
+    const sub = item.sub.length > 24 ? `${item.sub.slice(0, 23)}…` : item.sub;
+    ctx.fillText(sub, 18, H - 18);
+    ctx.restore();
+    ctx.strokeStyle = "rgba(255,255,255,.12)";
+    ctx.lineWidth = 2;
+    roundRect(ctx, 1, 1, W - 2, H - 2, 28);
+    ctx.stroke();
+  };
+  paint(null); // the generated art shows immediately; an uploaded image replaces it when it has loaded
   const t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
+  if (item.image)
+    void loadImage(item.image).then((img) => {
+      if (!img) return;
+      paint(img);
+      t.needsUpdate = true;
+    });
   return t;
 }
 
@@ -130,14 +165,12 @@ function makeGrooves() {
   return t;
 }
 
-function makeLabel(seed: string) {
+function makeLabel(seed: string, image?: string | null) {
   const S = 256;
   const c = document.createElement("canvas");
   c.width = c.height = S;
   const g = c.getContext("2d")!;
   const [a, b, d] = coverColors(seed);
-  g.fillStyle = "#14141f";
-  g.fillRect(0, 0, S, S);
   const blob = (x: number, y: number, r: number, col: string) => {
     const gr = g.createRadialGradient(x, y, 0, x, y, r);
     gr.addColorStop(0, col);
@@ -145,33 +178,48 @@ function makeLabel(seed: string) {
     g.fillStyle = gr;
     g.fillRect(0, 0, S, S);
   };
-  blob(S * 0.3, S * 0.3, S * 0.7, a);
-  blob(S * 0.75, S * 0.7, S * 0.65, b);
-  blob(S * 0.5, S * 0.9, S * 0.6, d + "aa");
-  g.strokeStyle = "rgba(255,255,255,0.55)";
-  g.lineWidth = 2;
-  g.beginPath();
-  g.arc(S / 2, S / 2, S * 0.4, 0, Math.PI * 2);
-  g.stroke();
-  g.fillStyle = "#0a0a10";
-  g.beginPath();
-  g.arc(S / 2, S / 2, S * 0.035, 0, Math.PI * 2);
-  g.fill();
+  const paint = (img: HTMLImageElement | null) => {
+    g.fillStyle = "#14141f";
+    g.fillRect(0, 0, S, S);
+    if (img) drawCover(g, img, 0, 0, S, S);
+    else {
+      blob(S * 0.3, S * 0.3, S * 0.7, a);
+      blob(S * 0.75, S * 0.7, S * 0.65, b);
+      blob(S * 0.5, S * 0.9, S * 0.6, d + "aa");
+    }
+    g.strokeStyle = "rgba(255,255,255,0.55)";
+    g.lineWidth = 2;
+    g.beginPath();
+    g.arc(S / 2, S / 2, S * 0.4, 0, Math.PI * 2);
+    g.stroke();
+    g.fillStyle = "#0a0a10";
+    g.beginPath();
+    g.arc(S / 2, S / 2, S * 0.035, 0, Math.PI * 2);
+    g.fill();
+  };
+  paint(null);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  if (image)
+    void loadImage(image).then((img) => {
+      if (!img) return;
+      paint(img);
+      t.needsUpdate = true;
+    });
   return t;
 }
 
-function Record({ seed, live, still }: { seed: string; live: Live; still: boolean }) {
+function Record({ seed, image, live, still }: { seed: string; image?: string | null; live: Live; still: boolean }) {
   const disc = useRef<THREE.Mesh>(null);
   const tilt = useRef<THREE.Group>(null);
   const spin = useRef({ vel: -0.8, grab: null as null | { a: number; v: number } });
   const tex = useMemo(() => {
     grooves ??= makeGrooves();
-    let label = labels.get(seed);
-    if (!label) labels.set(seed, (label = makeLabel(seed)));
+    const id = `${seed}|${image ?? ""}`;
+    let label = labels.get(id);
+    if (!label) labels.set(id, (label = makeLabel(seed, image)));
     return { grooves, label };
-  }, [seed]);
+  }, [seed, image]);
   const { gl, camera } = useThree();
 
   // Grab the platter like a DJ: the angle around the centre follows the pointer while held, a flick
@@ -258,13 +306,13 @@ function Record({ seed, live, still }: { seed: string; live: Live; still: boolea
 }
 
 /** The record on its own: one small canvas for the hero panel. */
-export function HeroRecord({ seed, live, active, still, lite, onSlow }: { seed: string; live: Live; active: boolean; still: boolean; lite: boolean; onSlow: (l: 1 | 2) => void }) {
+export function HeroRecord({ seed, image, live, active, still, lite, onSlow }: { seed: string; image?: string | null; live: Live; active: boolean; still: boolean; lite: boolean; onSlow: (l: 1 | 2) => void }) {
   return (
     <Canvas frameloop="demand" dpr={lite ? 1 : [1, 1.75]} camera={{ position: [0, 0, 6.6], fov: 34 }} gl={{ antialias: !lite, alpha: true, stencil: false }} style={{ touchAction: "pan-y" }}>
       <ambientLight intensity={0.7} />
       <directionalLight position={[3, 4, 3]} intensity={3} color="#ffb48f" />
       <directionalLight position={[-4, 1, 2]} intensity={2.2} color="#7cc8ff" />
-      <Record seed={seed} live={live} still={still} />
+      <Record seed={seed} image={image} live={live} still={still} />
       <Watchdog onSlow={onSlow} lite={lite} />
       <Ticker active={active && !still} lite={lite} />
     </Canvas>
@@ -393,7 +441,7 @@ function Tile({ item, angle, radius, hovered }: { item: StageItem; angle: number
   const mesh = useRef<THREE.Group>(null);
   // Keyed on what is drawn, not on the item object: a data refetch must not redraw every texture.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const tex = useMemo(() => tileTexture(item), [item.key, item.kind, item.label, item.sub, item.seed]);
+  const tex = useMemo(() => tileTexture(item), [item.key, item.kind, item.label, item.sub, item.seed, item.image]);
   useEffect(() => () => tex.dispose(), [tex]);
   const open = useRef(item.onOpen);
   useEffect(() => {

@@ -86,7 +86,7 @@ function useLive(): Live {
 }
 
 /** The grabbable record for the top of the home page. `fallback` shows only when WebGL is missing. */
-export function HeroDisc({ seed, fallback }: { seed: string; fallback: ReactNode }) {
+export function HeroDisc({ seed, image, fallback }: { seed: string; image?: string | null; fallback: ReactNode }) {
   const live = useLive();
   const l = useLite();
   const box = useRef<HTMLDivElement>(null);
@@ -99,7 +99,7 @@ export function HeroDisc({ seed, fallback }: { seed: string; fallback: ReactNode
       ) : (
         visible && (
           <Suspense fallback={null}>
-            <HeroScene seed={seed} live={live} active={tab} still={reduced()} lite={l} onSlow={onSlow} />
+            <HeroScene seed={seed} image={image} live={live} active={tab} still={reduced()} lite={l} onSlow={onSlow} />
           </Suspense>
         )
       )}
