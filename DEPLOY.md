@@ -24,7 +24,7 @@ Free tiers change. Check each service's pricing page when you sign up.
 | `DATABASE_URL` | Postgres connection string. | See [Database](#3-database). |
 | `NIMIQ_RPC_URL` | A Nimiq JSON-RPC node, used to look up a payment by hash. Without it real payments stay "pending". | See [Nimiq RPC](#5-nimiq-rpc). |
 | `ADMIN_ADDRESSES` | Comma-separated Nimiq addresses that become admins the first time they sign in. | Your own wallet address from Nimiq Pay (starts with `NQ`). It is public, not secret. |
-| `NIMSTAGE_PROOF_ADDRESS` | Optional. Where the one-luna "I own this address" transaction is sent when someone signs in from a normal browser. Defaults to the first `ADMIN_ADDRESSES` entry, then the Nimiq burn address. | Leave unset unless you want it to go somewhere specific. It is public, not secret. |
+| `NIMSTAGE_PROOF_ADDRESS` | Optional. Where the one-luna "I own this address" transaction is sent when someone signs in from a normal browser. Defaults to the first `ADMIN_ADDRESSES` entry, then a built-in valid address nobody holds the key for. | Leave unset unless you want it to go somewhere specific. It is public, not secret. |
 | `NODE_ENV` | Set to `production`. | `npm start` already sets it; on Render set it explicitly. |
 
 ### Media storage (needed on Render)

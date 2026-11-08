@@ -79,7 +79,7 @@ See [`.env.example`](.env.example). For production:
 | `NIMIQ_RPC_URL` | A Nimiq JSON-RPC node for `getTransactionByHash`. Without it, real payments stay "pending" |
 | `S3_BUCKET` + `S3_*` | S3-compatible storage for audio (Cloudflare R2 has a free tier) |
 | `ADMIN_ADDRESSES` | Comma-separated addresses that become admins on first sign-in |
-| `NIMSTAGE_PROOF_ADDRESS` | Optional recipient of the browser sign-in proof transaction (default: first admin address, else the burn address) |
+| `NIMSTAGE_PROOF_ADDRESS` | Optional recipient of the browser sign-in proof transaction (default: first admin address, else a built-in valid address nobody holds the key for) |
 | `NIMSTAGE_DEMO`, `NIMSTAGE_DEMO_PAYMENTS` | Leave **off** in production |
 
 Production runs as one Node process: `npm run build && npm start` (serves `dist/` and the API on `PORT`).

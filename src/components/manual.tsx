@@ -150,7 +150,7 @@ export function AddressLogin() {
         </p>
         <label className="block">
           <span className="label">Your Nimiq address</span>
-          <input className="field mt-1 font-mono" placeholder="NQ07 0000 0000 0000 0000 0000 0000 0000 0000" autoCapitalize="characters" autoComplete="off" spellCheck={false} value={address} onChange={(e) => setAddress(e.target.value)} />
+          <input className="field mt-1 font-mono" placeholder="Paste your address (starts with NQ)" autoCapitalize="characters" autoComplete="off" spellCheck={false} value={address} onChange={(e) => setAddress(e.target.value)} />
         </label>
         {error && <p role="alert" className="rounded-2xl border border-danger/40 bg-danger/10 p-3 text-danger">{error}</p>}
         <button type="submit" className="btn btn-primary w-full" disabled={busy || !valid}>{busy ? "One moment…" : "Continue"}</button>

@@ -137,17 +137,17 @@ export async function fetchAddressTxs(address: string, max = 40): Promise<{ ok: 
 
 export const sameAddress = (a: string, b: string) => normalizeAddress(a) === normalizeAddress(b);
 
-/** Where the one-luna "I own this address" transaction is sent. Only dust moves, and the sender is what matters. */
-export const BURN_ADDRESS = "NQ07 0000 0000 0000 0000 0000 0000 0000 0000";
+/** Where the one-luna "I own this address" transaction goes by default: an ordinary valid address that nobody holds the key for (the protocol's all-zeros null address is not one wallets will send to). Only dust moves; the sender is what matters. */
+export const SINK_ADDRESS = "NQ82 C0PX LNFH CCAY KENQ 1CEV U2FX R2Y7 4YB2";
 export function proofAddress(env: NodeJS.ProcessEnv = process.env): string {
   const firstAdmin = (env.ADMIN_ADDRESSES ?? "").split(",").map((a) => a.trim()).find(Boolean);
-  return env.NIMSTAGE_PROOF_ADDRESS?.trim() || firstAdmin || BURN_ADDRESS;
+  return env.NIMSTAGE_PROOF_ADDRESS?.trim() || firstAdmin || SINK_ADDRESS;
 }
 
 /** The destination of the proof for this signer: never the signer's own address (wallets won't send to yourself). */
 export function proofTarget(signer: string, env: NodeJS.ProcessEnv = process.env): string {
   const to = proofAddress(env);
-  return sameAddress(to, signer) ? BURN_ADDRESS : to;
+  return sameAddress(to, signer) ? SINK_ADDRESS : to;
 }
 
 export type ProofResult = { status: "ok" } | { status: "pending"; reason?: string };
