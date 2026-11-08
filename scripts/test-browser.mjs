@@ -1,6 +1,7 @@
 // Browser (no Nimiq Pay) flows against a MOCK Nimiq JSON-RPC node: sign-in by proving an address on-chain,
 // and paying by hand from any wallet. It proves our verification rules, not a live node's exact response.
 //
+// (Optional: also set NIMSTAGE_PROOF_ADDRESS on the server and PROOF_ADDRESS here to test the self-signer case.)
 // Start the API with a throwaway database and the mock node, e.g.:
 //   PGLITE_DIR=.data/test-browser NIMSTAGE_DEMO=1 NIMIQ_RPC_URL=http://localhost:4011 DATABASE_URL= S3_BUCKET= PORT=3011 npx tsx server/index.ts
 // then:  BASE=http://localhost:3011 node scripts/test-browser.mjs
@@ -51,6 +52,12 @@ const other = newAddress();
 check("a made-up address is refused", (await post("/api/auth/address/start", { address: "NQ12 not an address at all 1234" })).status === 400);
 const start = await post("/api/auth/address/start", { address: mine });
 check("a real address gets a code, a memo and one luna to send", start.status === 200 && start.code?.length === 32 && start.memo === `NSL:${start.code}` && start.amountLuna === 1, JSON.stringify(start));
+
+// When the signer IS the proof address (an admin signing in), the proof must go somewhere else.
+if (process.env.PROOF_ADDRESS) {
+  const self = await post("/api/auth/address/start", { address: process.env.PROOF_ADDRESS });
+  check("signing in as the proof address itself is sent to a different address", self.status === 200 && norm(self.to) !== norm(process.env.PROOF_ADDRESS), JSON.stringify(self));
+}
 
 const tx = (over = {}) => ({ hash: hash(), from: mine, to: start.to, value: 1, recipientData: hex(start.memo), confirmations: 2, executionResult: true, ...over });
 const ask = () => post("/api/auth/address/check", { code: start.code });

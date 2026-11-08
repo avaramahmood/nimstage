@@ -94,6 +94,14 @@ function usePoll(check: () => Promise<boolean>, minutes: number, active: boolean
   return timedOut;
 }
 
+/** What the server saw on the network while it waits for the proof transaction. */
+const PENDING_TEXT: Record<string, string> = {
+  waiting_for_confirmation: "Your transaction was seen. Waiting for it to confirm, about a minute.",
+  failed_on_chain: "That transaction failed on the network. Send it again.",
+  rpc_error: "Couldn't reach the Nimiq network just now. Trying again…",
+  rpc_unavailable: "The Nimiq network isn't connected on this server.",
+};
+
 type Proof = { code: string; address: string; to: string; amountLuna: number; memo: string; minutes: number };
 
 /** Sign in from a browser: paste your address, prove it with a one-luna transaction. */
@@ -103,16 +111,18 @@ export function AddressLogin() {
   const [proof, setProof] = useState<Proof | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [seen, setSeen] = useState("");
   const valid = looksLikeNimiqAddress(address);
 
   const timedOut = usePoll(
     async () => {
       if (!proof) return false;
-      const r = await api<{ status: "ok" | "pending"; token?: string }>("/api/auth/address/check", { code: proof.code });
+      const r = await api<{ status: "ok" | "pending"; token?: string; reason?: string }>("/api/auth/address/check", { code: proof.code });
       if (r.status === "ok" && r.token) {
         await acceptToken(r.token);
         return true;
       }
+      setSeen(PENDING_TEXT[r.reason ?? ""] ?? "");
       return false;
     },
     proof?.minutes ?? 20,
@@ -151,13 +161,13 @@ export function AddressLogin() {
   return (
     <div className="grid gap-3" aria-live="polite">
       <p className="text-muted">
-        From <strong className="text-ink break-all">{proof.address}</strong>, send this transaction. It costs nothing but {nimText(proof.amountLuna)} NIM.
+        Pasting the address isn't enough on its own: now <strong className="text-ink">send this one small transaction from <span className="break-all">{proof.address}</span></strong> in your wallet. It costs nothing but {nimText(proof.amountLuna)} NIM, and you're signed in automatically when it arrives.
       </p>
       <CopyField label="Send to" value={proof.to} />
       <CopyField label="Amount (NIM)" value={nimText(proof.amountLuna)} />
       <CopyField label="Message" value={proof.memo} />
       <WalletLink />
-      <p className="flex items-center gap-2 text-sm text-muted"><span className="live-dot text-accent" aria-hidden="true" />{timedOut ? "This took too long. Start again." : "Waiting for your transaction. This usually takes under a minute."}</p>
+      <p className="flex items-center gap-2 text-sm text-muted"><span className="live-dot text-accent" aria-hidden="true" />{timedOut ? "This took too long. Start again." : seen || "Waiting for your transaction. This usually takes under a minute."}</p>
       <button type="button" className="btn btn-ghost btn-sm w-fit" onClick={() => setProof(null)}>Use a different address</button>
     </div>
   );

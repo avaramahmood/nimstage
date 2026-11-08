@@ -144,6 +144,12 @@ export function proofAddress(env: NodeJS.ProcessEnv = process.env): string {
   return env.NIMSTAGE_PROOF_ADDRESS?.trim() || firstAdmin || BURN_ADDRESS;
 }
 
+/** The destination of the proof for this signer: never the signer's own address (wallets won't send to yourself). */
+export function proofTarget(signer: string, env: NodeJS.ProcessEnv = process.env): string {
+  const to = proofAddress(env);
+  return sameAddress(to, signer) ? BURN_ADDRESS : to;
+}
+
 export type ProofResult = { status: "ok" } | { status: "pending"; reason?: string };
 
 /**

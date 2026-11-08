@@ -5,7 +5,7 @@ import { z } from "zod";
 import { getDb, schema } from "@srv/db";
 import { HttpError, body, clientIp, rateLimit, requireUser } from "@srv/http";
 import { clearSession, getUser, mediaToken, setSession } from "@srv/session";
-import { findAddressProof, parseAddress, proofAddress, verifyLoginSignature } from "@srv/nimiq";
+import { findAddressProof, parseAddress, proofTarget, verifyLoginSignature } from "@srv/nimiq";
 import { normalizeAddress } from "@shared/units";
 import { sessionUserView } from "@srv/userview";
 import { newId } from "@srv/ids";
@@ -75,7 +75,7 @@ auth.post("/auth/address/start", async (c) => {
   const nonce = randomBytes(16).toString("hex");
   const db = await getDb();
   await db.insert(schema.authChallenges).values({ nonce, message: PROOF_PREFIX + normalizeAddress(friendly), expiresAt: new Date(Date.now() + PROOF_MINUTES * 60_000) });
-  return c.json({ code: nonce, address: friendly, to: proofAddress(), amountLuna: 1, memo: `NSL:${nonce}`, minutes: PROOF_MINUTES });
+  return c.json({ code: nonce, address: friendly, to: proofTarget(friendly), amountLuna: 1, memo: `NSL:${nonce}`, minutes: PROOF_MINUTES });
 });
 
 auth.post("/auth/address/check", async (c) => {
@@ -85,7 +85,7 @@ auth.post("/auth/address/check", async (c) => {
   const [challenge] = await db.select().from(schema.authChallenges).where(eq(schema.authChallenges.nonce, code)).limit(1);
   if (!challenge || !challenge.message.startsWith(PROOF_PREFIX) || challenge.used || challenge.expiresAt < new Date()) throw new HttpError("This code expired. Start again to get a new one.", 400);
   const address = challenge.message.slice(PROOF_PREFIX.length);
-  const proof = await findAddressProof(address, proofAddress(), `NSL:${code}`);
+  const proof = await findAddressProof(address, proofTarget(address), `NSL:${code}`);
   if (proof.status !== "ok") return c.json({ status: "pending", reason: proof.reason });
   // Single use: whoever flips the flag first gets the session.
   const claimed = await db.update(schema.authChallenges).set({ used: true }).where(and(eq(schema.authChallenges.nonce, code), eq(schema.authChallenges.used, false))).returning({ nonce: schema.authChallenges.nonce });
