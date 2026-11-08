@@ -437,12 +437,23 @@ function Fit({ count }: { count: number }) {
 
 /* ---------- the tile ring: drag to spin (with inertia), hover lifts, click opens ---------- */
 
-function Tile({ item, angle, radius, hovered }: { item: StageItem; angle: number; radius: number; hovered: React.RefObject<string | null> }) {
+function Tile({ item, angle, radius, hovered, index }: { item: StageItem; angle: number; radius: number; hovered: React.RefObject<string | null>; index: number }) {
   const mesh = useRef<THREE.Group>(null);
-  // Keyed on what is drawn, not on the item object: a data refetch must not redraw every texture.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const tex = useMemo(() => tileTexture(item), [item.key, item.kind, item.label, item.sub, item.seed, item.image]);
-  useEffect(() => () => tex.dispose(), [tex]);
+  // Each tile draws its own texture on its own turn (index * 40 ms), so fourteen canvases are not painted in one
+  // long task that would freeze taps. Keyed on what is drawn, not on the item object, so a data refetch doesn't redraw.
+  const [tex, setTex] = useState<THREE.CanvasTexture | null>(null);
+  useEffect(() => {
+    let made: THREE.CanvasTexture | null = null;
+    const t = setTimeout(() => {
+      made = tileTexture(item);
+      setTex(made);
+    }, index * 40);
+    return () => {
+      clearTimeout(t);
+      made?.dispose();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.key, item.kind, item.label, item.sub, item.seed, item.image, index]);
   const open = useRef(item.onOpen);
   useEffect(() => {
     open.current = item.onOpen;
@@ -456,6 +467,7 @@ function Tile({ item, angle, radius, hovered }: { item: StageItem; angle: number
     g.scale.setScalar(g.scale.x);
     g.position.y += ((isHot ? 0.28 : 0) - g.position.y) * Math.min(1, dt * 10);
   });
+  if (!tex) return null;
   return (
     <group rotation={[0, angle, 0]}>
       <group ref={mesh} position={[0, 0, radius]}>
@@ -532,7 +544,7 @@ function Ring({ items, live, scroll }: { items: StageItem[]; live: Live; scroll:
   return (
     <group ref={group} position={[0, -0.15, -0.4]}>
       {items.map((it, i) => (
-        <Tile key={it.key} item={it} angle={(i / items.length) * Math.PI * 2} radius={radius} hovered={hovered} />
+        <Tile key={it.key} item={it} index={i} angle={(i / items.length) * Math.PI * 2} radius={radius} hovered={hovered} />
       ))}
     </group>
   );

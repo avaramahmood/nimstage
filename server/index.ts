@@ -19,6 +19,8 @@ import { studio } from "./routes/studio";
 import { admin } from "./routes/admin";
 import { pages } from "./routes/pages";
 import { checkEnv } from "@srv/env";
+import { clearCache, swr } from "@srv/cache";
+import { discoverView, homeView } from "@srv/views";
 
 const prod = process.env.NODE_ENV === "production";
 {
@@ -36,6 +38,8 @@ const api = new Hono();
 api.use("*", async (c, next) => {
   await next();
   if (!c.res.headers.has("cache-control")) c.res.headers.set("cache-control", "no-store");
+  // A write by an artist, an admin (takedowns, suspensions) or a payment can change what home and discover show.
+  if (c.req.method !== "GET" && /^\/api\/(studio|admin|payments|reports|me)\b/.test(c.req.path)) clearCache();
 });
 for (const r of [auth, account, profile, images, payments, media, shows, polls, social, studio, admin, pages]) api.route("/", r);
 // Cheap liveness probe for the host (no database call, so a slow database can't fail the deploy).
@@ -68,4 +72,6 @@ if (prod) {
 const port = Number(process.env.PORT ?? (prod ? 3000 : (process.env.API_PORT ?? 8787)));
 // Open the database (create tables, seed demo data) before the first request arrives.
 await getDb();
+// Warm the public pages now, so the first visitor after a deploy or restart gets them from memory.
+void Promise.all([swr("home", 15_000, 600_000, homeView), swr("discover:", 15_000, 600_000, () => discoverView(""))]).catch(() => {});
 serve({ fetch: app.fetch, port }, () => console.log(`NimStage ${prod ? "(production) " : "API "}listening on http://localhost:${port}`));

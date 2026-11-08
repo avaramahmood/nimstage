@@ -275,6 +275,17 @@ await test("artwork: track and show covers can be set on your own items", async 
   assert.equal((await call("/api/studio/art/track/" + trackId, { method: "DELETE", as: artist })).status, 200);
 });
 
+await test("cache: the home page is cached, but an artist's new show appears at once", async () => {
+  const home = async () => ((await (await fetch(base + "/api/home")).json()) as { live: { title: string }[]; upcoming: { title: string }[] });
+  const titles = (h: { live: { title: string }[]; upcoming: { title: string }[] }) => [...h.live, ...h.upcoming].map((s) => s.title);
+  const before = await home(); // primes the cache
+  assert.ok(!titles(before).includes("Cache Probe Show"));
+  assert.deepEqual(titles(await home()), titles(before), "a second read is identical (served from memory)");
+  const start = new Date(Date.now() + 4 * 3600_000).toISOString();
+  assert.equal((await call("/api/studio/shows", { body: { title: "Cache Probe Show", description: "d", startsAt: start, durationMin: 30, priceNim: 1, kind: "live" }, as: artist })).status, 200);
+  assert.ok(titles(await home()).includes("Cache Probe Show"), "the write cleared the cache, so the new show is there immediately");
+});
+
 /* ------------------------------- sessions without cookies ------------------------------- */
 await test("sessions: a bearer token signs you in without a cookie; audio uses a narrow media token", async () => {
   const bearer = (t: string) => ({ authorization: "Bearer " + t });

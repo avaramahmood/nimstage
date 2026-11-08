@@ -9,6 +9,7 @@ const r = (p: string) => path.resolve(import.meta.dirname, p);
 // browser only ever talks to one origin. In production the Hono server serves the built app itself.
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: { __BUILD_ID__: JSON.stringify(Date.now().toString(36)) },
   resolve: { alias: { "@": r("src"), "@shared": r("shared"), "@srv": r("server/lib") } },
   server: {
     host: true, // reachable from a phone on the same Wi-Fi (for testing inside Nimiq Pay)

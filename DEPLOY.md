@@ -146,6 +146,17 @@ In production the server checks its configuration on boot: it refuses to start w
 `SESSION_SECRET` or with `NIMSTAGE_DEMO_PAYMENTS=1`, and prints warnings for a missing database, bucket, RPC URL or
 admin address.
 
+### Speed on the free tiers
+
+- **Cold database.** Free Neon suspends its compute after about 5 minutes without queries, and the first query afterwards
+  takes 1 to 2 seconds. The cron-job keep-alive deliberately hits `/api/health`, which does not touch the database,
+  because keeping Neon awake around the clock would use up its monthly compute allowance.
+- **What hides it.** The public pages (home, discover) are served from server memory and refreshed in the background
+  (`server/lib/cache.ts`), warmed at boot, and cleared whenever an artist, admin or payment changes something. The
+  app also keeps the last home screen on the device and shows it at once on the next launch. Signed-in data
+  (`/api/me`) still needs the database, so the first call after a quiet spell can take a second or two.
+- **The 3D scenes** wait until the app has started and the person has paused, and are skipped on weak devices.
+
 ## 7. Load it in Nimiq Pay
 
 1. Install Nimiq Pay on your phone. For testing, switch it to testnet (hidden dev menu).

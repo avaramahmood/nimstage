@@ -6,6 +6,7 @@ import { buildIcs, googleCalendarUrl, icsDate, icsEscape } from "@shared/calenda
 import { coverColors, coverStyle, fmtDuration, hash } from "@shared/format";
 import { checkEnv } from "@srv/env";
 import { joinWindow } from "@shared/live";
+import { clearCache, swr } from "@srv/cache";
 import { USERNAME_MAX, looksLikeAddressName, needsOnboarding, suggestUsername, usernameProblem } from "@shared/username";
 import { isMp3Upload, looksLikeMp3 } from "@srv/storage";
 import { dayOptions, joinLocalValue, nextSlot, splitLocalValue, toLocalValue } from "@shared/when";
@@ -246,6 +247,51 @@ test("usernames: the rules, reserved words, suggestions and the first-run gate",
   assert.equal(needsOnboarding(noName, "/welcome"), false, "the setup screen itself");
   for (const readable of ["/terms", "/privacy", "/help", "/about", "/policy", "/help/more"]) assert.equal(needsOnboarding(noName, readable), false, readable);
   assert.equal(needsOnboarding(noName, "/termsx"), true, "only exact pages are exempt");
+});
+test("cache: fresh from memory, stale served at once while refreshing, failures keep the old copy", async () => {
+  clearCache();
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  let n = 0;
+  const load = async () => ++n;
+  assert.equal(await swr("k", 60, 400, load), 1, "first call loads");
+  assert.equal(await swr("k", 60, 400, load), 1, "fresh: from memory, no load");
+  assert.equal(n, 1);
+  await sleep(90);
+  assert.equal(await swr("k", 60, 400, load), 1, "stale: answered from memory immediately...");
+  await sleep(20);
+  assert.equal(n, 2, "...and refreshed in the background");
+  assert.equal(await swr("k", 60, 400, load), 2, "the next visitor gets the refreshed copy");
+
+  let calls = 0;
+  const flaky = async () => {
+    calls++;
+    if (calls > 1) throw new Error("database asleep");
+    return "good";
+  };
+  assert.equal(await swr("f", 30, 400, flaky), "good");
+  await sleep(50);
+  assert.equal(await swr("f", 30, 400, flaky), "good", "a failed refresh keeps serving the old copy");
+  await sleep(20);
+  assert.equal(await swr("f", 30, 400, flaky), "good");
+
+  await sleep(450);
+  let slow = 0;
+  assert.equal(await swr("k", 60, 400, async () => 100 + ++slow), 101, "older than the stale window: loaded again");
+  clearCache();
+  assert.equal(await swr("k", 60_000, 60_000, async () => "after clear"), "after clear", "clearCache forgets everything");
+  // two stale readers at once start only one refresh
+  clearCache();
+  let loads = 0;
+  const counted = async () => {
+    loads++;
+    await sleep(30);
+    return loads;
+  };
+  await swr("c", 10, 400, counted);
+  await sleep(30);
+  await Promise.all([swr("c", 10, 400, counted), swr("c", 10, 400, counted), swr("c", 10, 400, counted)]);
+  await sleep(80);
+  assert.equal(loads, 2, "one refresh, not three");
 });
 test("units: address helpers", () => {
   assert.equal(normalizeAddress("nq07 0000 0000"), "NQ070000" + "0000");

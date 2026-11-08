@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery, type QueryClient } from "@tanstack/react-qu
 import type { Serialized } from "@shared/types";
 import type { adminView, artistView, discoverView, homeView, libraryView, showView, studioView, trackView } from "@srv/views";
 import { api, ApiError } from "./api";
+import { readSaved, writeSaved } from "./persist";
 
 type View<F extends (...args: never[]) => unknown> = Serialized<NonNullable<Awaited<ReturnType<F>>>>;
 export type HomeView = View<typeof homeView>;
@@ -41,8 +42,33 @@ const fetchers = {
   admin: () => api<AdminView>("/api/admin"),
 };
 
-export const useHome = () => useQuery({ queryKey: keys.home, queryFn: fetchers.home, staleTime: 15_000 });
-export const useDiscover = (q: string) => useQuery({ queryKey: keys.discover(q), queryFn: () => fetchers.discover(q), placeholderData: keepPreviousData, staleTime: 15_000 });
+// Home and the unfiltered Discover list are public, so the last copy is kept on the device and shown at once on the
+// next launch while a fresh one loads (see lib/persist.ts).
+export const useHome = () =>
+  useQuery({
+    queryKey: keys.home,
+    queryFn: async () => {
+      const data = await fetchers.home();
+      writeSaved("home", data);
+      return data;
+    },
+    initialData: () => readSaved<HomeView>("home")?.data,
+    initialDataUpdatedAt: () => readSaved<HomeView>("home")?.at,
+    staleTime: 15_000,
+  });
+export const useDiscover = (q: string) =>
+  useQuery({
+    queryKey: keys.discover(q),
+    queryFn: async () => {
+      const data = await fetchers.discover(q);
+      if (!q) writeSaved("discover", data);
+      return data;
+    },
+    initialData: () => (q ? undefined : readSaved<DiscoverView>("discover")?.data),
+    initialDataUpdatedAt: () => (q ? undefined : readSaved<DiscoverView>("discover")?.at),
+    placeholderData: keepPreviousData,
+    staleTime: 15_000,
+  });
 export const useArtist = (handle: string) => useQuery({ queryKey: keys.artist(handle), queryFn: () => fetchers.artist(handle), retry: notFoundNoRetry });
 export const useShow = (id: string) => useQuery({ queryKey: keys.show(id), queryFn: () => fetchers.show(id), retry: notFoundNoRetry });
 export const useTrack = (id: string) => useQuery({ queryKey: keys.track(id), queryFn: () => fetchers.track(id), retry: notFoundNoRetry });

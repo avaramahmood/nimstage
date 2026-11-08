@@ -12,6 +12,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import { routes } from "@/router";
+import { readSaved, writeSaved } from "@/lib/persist";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const realFetch = globalThis.fetch;
@@ -245,4 +246,25 @@ describe("behaviour in the rendered app", () => {
     await waitFor(() => expect(artist.container.textContent).toContain("@miravale"));
     expect(artist.container.textContent).toContain("Mira Vale");
   }, 30_000);
+
+  it("saved home copy: kept for the next launch, ignored when from another build, too old or damaged", () => {
+    localStorage.clear();
+    expect(readSaved("home")).toBeUndefined();
+    writeSaved("home", { live: [], upcoming: [], marker: 1 });
+    expect((readSaved<{ marker: number }>("home")?.data)?.marker).toBe(1);
+    expect(readSaved("discover")).toBeUndefined();
+    const raw = JSON.parse(localStorage.getItem("ns_cache")!);
+    // a different build may expect a different shape of data
+    localStorage.setItem("ns_cache", JSON.stringify({ ...raw, build: "some-other-build" }));
+    expect(readSaved("home")).toBeUndefined();
+    // older than a day
+    localStorage.setItem("ns_cache", JSON.stringify({ ...raw, items: { home: { at: Date.now() - 25 * 3600_000, data: {} } } }));
+    expect(readSaved("home")).toBeUndefined();
+    // damaged or blocked storage never throws
+    localStorage.setItem("ns_cache", "{not json");
+    expect(readSaved("home")).toBeUndefined();
+    writeSaved("home", { marker: 2 }); // overwrites the damaged value
+    expect((readSaved<{ marker: number }>("home")?.data)?.marker).toBe(2);
+    localStorage.clear();
+  });
 });

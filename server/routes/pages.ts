@@ -1,14 +1,19 @@
 import { Hono } from "hono";
 import { HttpError, requireUser } from "@srv/http";
 import { getUser } from "@srv/session";
+import { swr } from "@srv/cache";
 import { randomArtistHandle } from "@srv/data";
 import { accessCtx, adminView, artistView, discoverView, homeView, libraryView, studioView, trackView } from "@srv/views";
 
 export const pages = new Hono();
 
-pages.get("/home", async (c) => c.json(await homeView()));
+// Public and identical for everyone, so it is served from memory (see lib/cache.ts) even while the database sleeps.
+pages.get("/home", async (c) => c.json(await swr("home", 15_000, 600_000, homeView)));
 
-pages.get("/discover", async (c) => c.json(await discoverView((c.req.query("q") ?? "").trim().slice(0, 60))));
+pages.get("/discover", async (c) => {
+  const q = (c.req.query("q") ?? "").trim().slice(0, 60);
+  return c.json(await swr(`discover:${q.toLowerCase()}`, 15_000, 600_000, () => discoverView(q)));
+});
 
 pages.get("/artists/:handle", async (c) => {
   const view = await artistView(c.req.param("handle"), await accessCtx(await getUser(c)));
