@@ -2,6 +2,7 @@ import { Link } from "@/components/link";
 import { Navigate } from "react-router";
 import { usePathname } from "@/lib/nav";
 import { Cover } from "@/components/ui";
+import { Logo } from "@/components/logo";
 import { needsOnboarding } from "@shared/username";
 import { Compass, House, Library, Mic, Search, User } from "lucide-react";
 import type { ReactNode } from "react";
@@ -19,9 +20,7 @@ const TABS = [
 function Brand() {
   return (
     <Link href="/" className="flex items-center gap-2.5 font-[family-name:var(--font-display)] text-lg font-bold" aria-label="NimStage home">
-      <span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-full bg-accent text-accent-ink">
-        <span className="block h-3 w-3 rounded-full border-[3px] border-current" />
-      </span>
+      <Logo size={34} />
       NimStage
     </Link>
   );

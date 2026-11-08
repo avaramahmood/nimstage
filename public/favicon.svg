@@ -1,1 +1,34 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#fa5d29"/><circle cx="16" cy="16" r="5.5" fill="none" stroke="#130a05" stroke-width="3"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fa5d29"/><stop offset=".55" stop-color="#c25bff"/><stop offset="1" stop-color="#49b3fc"/></linearGradient>
+    <linearGradient id="label" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffc06b"/><stop offset="1" stop-color="#fa5d29"/></linearGradient>
+    <radialGradient id="glowA" cx=".8" cy=".14" r=".75"><stop offset="0" stop-color="#fa5d29" stop-opacity=".42"/><stop offset="1" stop-color="#fa5d29" stop-opacity="0"/></radialGradient>
+    <radialGradient id="glowB" cx=".12" cy=".92" r=".75"><stop offset="0" stop-color="#49b3fc" stop-opacity=".36"/><stop offset="1" stop-color="#49b3fc" stop-opacity="0"/></radialGradient>
+    <linearGradient id="beam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <clipPath id="square"><rect width="512" height="512" rx="112"/></clipPath>
+    <clipPath id="disc"><polygon points="256.0,80.0 408.4,168.0 408.4,344.0 256.0,432.0 103.6,344.0 103.6,168.0"/></clipPath>
+  </defs>
+  <g clip-path="url(#square)">
+    <rect width="512" height="512" fill="#090910"/>
+    <rect width="512" height="512" fill="url(#glowA)"/>
+    <rect width="512" height="512" fill="url(#glowB)"/>
+    <polygon points="206,0 306,0 478,512 34,512" fill="url(#beam)"/>
+    <g transform="translate(256 256) scale(1) translate(-256 -256)">
+      <polygon points="256.0,80.0 408.4,168.0 408.4,344.0 256.0,432.0 103.6,344.0 103.6,168.0" fill="#12121b" stroke="url(#ring)" stroke-width="16" stroke-linejoin="round"/>
+      <g fill="none" stroke="#fff" stroke-opacity=".1" stroke-width="5" stroke-linejoin="round">
+        <polygon points="256.0,108.0 384.2,182.0 384.2,330.0 256.0,404.0 127.8,330.0 127.8,182.0"/>
+        <polygon points="256.0,134.0 361.7,195.0 361.7,317.0 256.0,378.0 150.3,317.0 150.3,195.0"/>
+        <polygon points="256.0,160.0 339.1,208.0 339.1,304.0 256.0,352.0 172.9,304.0 172.9,208.0"/>
+      </g>
+      <polygon points="112,128 196,128 408,384 324,384" fill="#fff" fill-opacity=".09" clip-path="url(#disc)"/>
+      <circle cx="256" cy="256" r="66" fill="url(#label)"/>
+      <g stroke="#130a05" stroke-width="13" stroke-linecap="round">
+        <line x1="226" y1="244" x2="226" y2="268"/>
+        <line x1="241" y1="228" x2="241" y2="284"/>
+        <line x1="256" y1="212" x2="256" y2="300"/>
+        <line x1="271" y1="232" x2="271" y2="280"/>
+        <line x1="286" y1="246" x2="286" y2="266"/>
+      </g>
+    </g>
+  </g>
+</svg>

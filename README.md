@@ -6,6 +6,12 @@ Artists schedule a premiere, sell tickets and supporter tiers, and get paid **di
 
 Built for the Nimiq Mini Apps Competition. MIT licensed.
 
+## Icon
+
+`node scripts/make-icons.mjs` draws the app icon (a hexagonal record under a stage spotlight, equalizer bars as its label)
+and writes `public/icon.svg`, `favicon.svg`, the PNG sizes (192, 512, a maskable 512, the iOS 180) and the web manifest.
+The same mark is drawn in the app header by `src/components/logo.tsx`.
+
 ## Stack
 
 | Layer | Choice |
