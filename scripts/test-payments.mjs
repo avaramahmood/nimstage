@@ -14,9 +14,16 @@ const mock = http.createServer((req, res) => {
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", () => {
-    const { params, id } = JSON.parse(body);
-    const tx = scenario[params[0]];
+    const { params, id, method } = JSON.parse(body);
     res.setHeader("content-type", "application/json");
+    if (method === "getTransactionsByAddress") {
+      const norm = (a) => String(a).replace(/\s/g, "").toUpperCase();
+      const data = Object.entries(scenario)
+        .filter(([, t]) => norm(t.to) === norm(params[0]))
+        .map(([hash, t]) => ({ hash, ...t }));
+      return res.end(JSON.stringify({ jsonrpc: "2.0", id, result: { data, metadata: null } }));
+    }
+    const tx = scenario[params[0]];
     res.end(JSON.stringify(tx ? { jsonrpc: "2.0", id, result: { data: tx, metadata: null } } : { jsonrpc: "2.0", id, error: { code: -32602, message: "not found" } }));
   });
 });
@@ -67,6 +74,33 @@ const reuse = await post("/api/payments/confirm", { intentId: i2.id, txHash: a.t
 const reuseOk = reuse.status === "failed";
 if (!reuseOk) failed++;
 console.log(`${reuseOk ? "PASS" : "FAIL"}  ${"same tx reused for a 2nd purchase".padEnd(42)} -> ${reuse.status} (${reuse.reason ?? ""})`);
+
+// ---- recovery: payments the app never heard back about ----
+// The customer paid on-chain but the app froze or closed before it learned the transaction hash. The server finds
+// the payment by its memo among the artist's recent incoming transactions, with exactly the same checks.
+{
+  const get = async (path) => (await fetch(base + path, { headers: { cookie } })).json();
+  const mk = async () => (await post("/api/payments/intent", { kind: "tip", refId: "a-kofistatic", amountLuna: 100_000 })).intent;
+  const [ok, under, other, elsewhere] = [await mk(), await mk(), await mk(), await mk()];
+  const tx = (i, over = {}) => ({ to: i.recipient, value: i.amountLuna, recipientData: hex(i.memo), confirmations: 3, executionResult: true, blockNumber: 100, ...over });
+  const h = () => hash(Math.floor(Math.random() * 1e12));
+  scenario[h()] = tx(ok);
+  scenario[h()] = tx(under, { value: under.amountLuna - 1 });
+  scenario[h()] = tx(other, { recipientData: hex("NS:someoneelse1") });
+  scenario[h()] = tx(elsewhere, { to: "NQ07 0000 0000 0000 0000 0000 0000 0000 0001" });
+  const receipts = (await get("/api/me/receipts")).receipts; // opening receipts triggers the recovery
+  const row = (i) => receipts.find((r) => r.id === i.id);
+  const check2 = (name, pass) => {
+    if (!pass) failed++;
+    console.log(`${pass ? "PASS" : "FAIL"}  ${name}`);
+  };
+  check2("recovered: a payment with no hash recorded is found by its memo and confirmed", row(ok)?.status === "confirmed" && !!row(ok)?.txHash);
+  check2("recovered: an underpaid one is refused, so it is not listed as paid", !row(under));
+  check2("recovered: a transaction with someone else's memo does not settle this payment", row(other)?.status === "pending");
+  check2("recovered: a payment sent to a different address is not matched", row(elsewhere)?.status === "pending");
+  const again = (await get("/api/me/receipts")).receipts;
+  check2("recovered: doing it again changes nothing (no double confirmation)", again.filter((r) => r.status === "confirmed").length === receipts.filter((r) => r.status === "confirmed").length);
+}
 
 mock.close();
 console.log(failed ? `\n${failed} check(s) failed` : "\nAll payment-verification checks passed.");

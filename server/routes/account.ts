@@ -5,6 +5,7 @@ import { getDb, schema } from "@srv/db";
 import { HttpError, body, rateLimit, requireUser } from "@srv/http";
 import { clearSession } from "@srv/session";
 import { getArtistByUser } from "@srv/data";
+import { reconcileSoon } from "@srv/payments";
 import { ACCENT_KEYS, MAX_LINKS, isSafeLink } from "@shared/artist";
 import { deleteMedia } from "@srv/storage";
 
@@ -39,11 +40,14 @@ account.patch("/me", async (c) => {
   return c.json({ ok: true, name: b.displayName ?? user.displayName });
 });
 
-/** What this person has paid for, newest first. Confirmed payments only: pending ones aren't receipts. */
+/**
+ * What this person has paid for, newest first: confirmed payments, plus ones still being checked (so a payment
+ * that is slow to confirm is visible instead of silently missing). Failed or abandoned attempts are not listed.
+ */
 async function receiptsFor(userId: string) {
   const db = await getDb();
   const rows = await db.select().from(paymentIntents).where(eq(paymentIntents.userId, userId)).orderBy(desc(paymentIntents.createdAt)).limit(200);
-  const paid = rows.filter((r) => r.status === "confirmed");
+  const paid = rows.filter((r) => r.status === "confirmed" || (r.status === "pending" && Date.now() - r.createdAt.getTime() < 7 * 86_400_000));
   const ids = (kind: string) => [...new Set(paid.filter((r) => r.kind === kind && r.refId).map((r) => r.refId!))];
   const [sh, tr, ti, ar] = await Promise.all([
     ids("ticket").length ? db.select({ id: shows.id, title: shows.title }).from(shows).where(inArray(shows.id, ids("ticket"))) : [],
@@ -56,6 +60,7 @@ async function receiptsFor(userId: string) {
   return paid.map((r) => ({
     id: r.id,
     kind: r.kind,
+    status: r.status as "confirmed" | "pending",
     item: (r.refId && title.get(r.refId)) || (r.kind === "tip" ? "Tip" : "Removed item"),
     artist: artistName.get(r.artistId) ?? "Artist",
     amountLuna: r.amountLuna,
@@ -66,6 +71,7 @@ async function receiptsFor(userId: string) {
 
 account.get("/me/receipts", async (c) => {
   const user = await requireUser(c);
+  await reconcileSoon({ userId: user.id });
   return c.json({ receipts: await receiptsFor(user.id) });
 });
 

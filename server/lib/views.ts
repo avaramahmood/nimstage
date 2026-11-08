@@ -23,6 +23,7 @@ import {
   type AccessCtx,
 } from "./data";
 import type { SessionUser } from "./session";
+import { reconcileSoon } from "./payments";
 
 export const homeView = () => getHome();
 export const discoverView = (q: string) => discover(q);
@@ -81,6 +82,7 @@ export const libraryView = (userId: string) => getLibrary(userId);
 export async function studioView(user: SessionUser) {
   const artist = await getArtistByUser(user.id);
   if (!artist) return { artist: null, studio: null, tracks: [], tiers: [] };
+  await reconcileSoon({ artistId: artist.id }); // so earnings include payments the app missed
   const [studio, tracks, tiers] = await Promise.all([getStudio(artist), getTracksByArtist(artist.id), getTiers(artist.id)]);
   return { artist, studio, tracks, tiers };
 }

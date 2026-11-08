@@ -111,6 +111,15 @@ This storage path has never been run against a real bucket. The first upload aft
   app). Mainnet only when you are ready to take real NIM.
 - Running your own node is the production answer. It is not needed to enter.
 
+**The RPC network must match the network people pay on.** Nimiq Pay pays on mainnet unless its hidden dev menu switches
+it to testnet. If `NIMIQ_RPC_URL` points at testnet while people pay on mainnet (or the reverse), the node can't find
+their payments and they stay "pending". Real NIM means `https://rpc.nimiqwatch.com`.
+
+**Payments are recovered automatically.** If a payment reaches the artist's wallet but the app never learns the transaction
+hash (the app froze or was closed mid-checkout), the server finds it by its memo (`NS:<id>`) in the artist's recent incoming
+transactions and settles it with the same checks as a normal confirmation. This runs when someone opens the app, their
+Receipts, or the Studio, so earnings catch up on their own. Payments still pending after 7 days are no longer retried.
+
 Not verified yet: the exact response shape of a live node, and whether the payment memo appears where the code
 expects it. The first real testnet payment settles this.
 

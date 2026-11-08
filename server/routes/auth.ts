@@ -10,7 +10,7 @@ import { normalizeAddress } from "@shared/units";
 import { sessionUserView } from "@srv/userview";
 import { newId } from "@srv/ids";
 import { getArtistByUser, getFanPass } from "@srv/data";
-import { demoPaymentsEnabled } from "@srv/payments";
+import { demoPaymentsEnabled, reconcileSoon } from "@srv/payments";
 
 export const auth = new Hono();
 
@@ -72,6 +72,7 @@ auth.get("/me", async (c) => {
   const user = await getUser(c);
   const config = { demo: process.env.NIMSTAGE_DEMO === "1", demoPayments: demoPaymentsEnabled() };
   if (!user) return c.json({ user: null, artist: null, config });
+  await reconcileSoon({ userId: user.id }); // a payment sent but never confirmed here is found by its memo
   const artist = await getArtistByUser(user.id);
   return c.json({
     user: sessionUserView(user),

@@ -170,7 +170,7 @@ describe("behaviour in the rendered app", () => {
     cleanup();
     await login("fan");
     const view = await renderPage("/receipts");
-    await waitFor(() => expect(view.container.textContent).toMatch(/No payments yet|Confirmed payments/));
+    await waitFor(() => expect(view.container.textContent).toMatch(/No payments yet|Your payments, newest first/));
   }, 30_000);
 
   it("studio: the profile editor offers artwork upload, an accent palette and links; the public page shows the extras", async () => {

@@ -1,7 +1,7 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, gt, ne } from "drizzle-orm";
 import { getDb, schema } from "@srv/db";
 import { newId } from "@srv/ids";
-import { fetchChainTx, sameAddress } from "@srv/nimiq";
+import { fetchAddressTxs, fetchChainTx, sameAddress, type ChainLookup, type ChainTx } from "@srv/nimiq";
 import { getArtistById, getShow, getTrack } from "@srv/data";
 import { MAX_LUNA, nimToLuna } from "@shared/units";
 import type { SessionUser } from "@srv/session";
@@ -93,7 +93,15 @@ export async function confirmIntent(user: SessionUser, intentId: string, txHash:
   if (!intent) throw new PaymentError("Payment not found", 404);
   if (intent.status === "confirmed") return { status: "confirmed" };
   if (!/^[0-9a-zA-Z-]{8,128}$/.test(txHash)) throw new PaymentError("Invalid transaction hash");
+  return settle(intent, txHash);
+}
 
+/**
+ * The one set of rules that decides whether a transaction pays for an intent. `known` is a transaction the
+ * caller already fetched (when recovering by memo); otherwise it is looked up by hash.
+ */
+async function settle(intent: Intent, txHash: string, known?: ChainTx): Promise<ConfirmResult> {
+  const db = await getDb();
   // A transaction can settle exactly one payment.
   const [dupe] = await db
     .select({ id: paymentIntents.id })
@@ -105,7 +113,7 @@ export async function confirmIntent(user: SessionUser, intentId: string, txHash:
   if (txHash.startsWith("demo-")) {
     if (!demoPaymentsEnabled()) return fail(intent.id, "Demo payments are disabled");
   } else {
-    const found = await fetchChainTx(txHash);
+    const found: ChainLookup = known ? { ok: true, tx: known } : await fetchChainTx(txHash);
     if (!found.ok) {
       // Not visible yet (propagation) or node unreachable: let the client retry rather than fail.
       if (found.reason === "not_found" || found.reason === "rpc_error") return { status: "pending", reason: found.reason };
@@ -122,6 +130,55 @@ export async function confirmIntent(user: SessionUser, intentId: string, txHash:
   await db.update(paymentIntents).set({ status: "confirmed", txHash, confirmedAt: new Date() }).where(eq(paymentIntents.id, intent.id));
   await grant(intent);
   return { status: "confirmed" };
+}
+
+const lastReconcile = new Map<string, number>();
+
+/** Recovery that never holds a page up for long: gives up waiting after `ms` (it keeps running in the background). */
+export async function reconcileSoon(scope: { userId?: string; artistId?: string }, ms = 3000): Promise<void> {
+  await Promise.race([reconcilePending(scope).catch(() => 0), new Promise((r) => setTimeout(r, ms))]);
+}
+
+/**
+ * Finds payments the app never heard back about. A payment that was sent on-chain but never confirmed here
+ * (the app froze or closed mid-checkout, the wallet didn't report the hash, or the node was checking the wrong
+ * network at the time) is matched by its memo from the artist's recent incoming transactions, then settled
+ * with exactly the same checks as a normal confirmation. Throttled per scope, and a no-op with nothing pending.
+ */
+export async function reconcilePending(scope: { userId?: string; artistId?: string }, minGapMs = 20_000): Promise<number> {
+  const key = scope.userId ? `u:${scope.userId}` : scope.artistId ? `a:${scope.artistId}` : "all";
+  const now = Date.now();
+  if (now - (lastReconcile.get(key) ?? 0) < minGapMs) return 0;
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(paymentIntents)
+    .where(
+      and(
+        eq(paymentIntents.status, "pending"),
+        gt(paymentIntents.createdAt, new Date(now - 7 * 86_400_000)),
+        scope.userId ? eq(paymentIntents.userId, scope.userId) : undefined,
+        scope.artistId ? eq(paymentIntents.artistId, scope.artistId) : undefined,
+      ),
+    )
+    .limit(25);
+  if (!rows.length) return 0;
+  lastReconcile.set(key, now);
+
+  let settled = 0;
+  const byRecipient = new Map<string, Intent[]>();
+  for (const r of rows) byRecipient.set(r.recipient, [...(byRecipient.get(r.recipient) ?? []), r]);
+  for (const [recipient, intents] of byRecipient) {
+    const found = await fetchAddressTxs(recipient);
+    if (!found.ok) continue;
+    for (const intent of intents) {
+      const tx = found.txs.find((t) => t.memo === intent.memo && t.hash && sameAddress(t.to, intent.recipient));
+      if (!tx?.hash) continue;
+      const result = await settle(intent, tx.hash, tx);
+      if (result.status === "confirmed") settled++;
+    }
+  }
+  return settled;
 }
 
 async function fail(id: string, reason: string): Promise<ConfirmResult> {

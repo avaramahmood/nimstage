@@ -57,6 +57,7 @@ export type ChainTx = {
   memo: string;
   executed: boolean;
   confirmations: number;
+  hash?: string;
 };
 
 export type ChainLookup =
@@ -68,6 +69,20 @@ export type ChainLookup =
  * Field names follow core-rs-albatross `ExecutedTransaction`: to, value (Luna),
  * recipientData (hex), confirmations, executionResult.
  */
+/** One transaction as the node reports it (field names follow core-rs-albatross). */
+function parseTx(t: Record<string, unknown>): ChainTx | null {
+  if (typeof t.to !== "string") return null;
+  const hex = typeof t.recipientData === "string" ? t.recipientData : "";
+  return {
+    to: t.to,
+    valueLuna: Number(t.value ?? 0),
+    memo: hex ? Buffer.from(hex, "hex").toString("utf8") : "",
+    executed: t.executionResult !== false,
+    confirmations: Number(t.confirmations ?? 0),
+    hash: typeof t.hash === "string" ? t.hash : undefined,
+  };
+}
+
 export async function fetchChainTx(hash: string): Promise<ChainLookup> {
   const url = process.env.NIMIQ_RPC_URL;
   if (!url) return { ok: false, reason: "rpc_unavailable" };
@@ -85,19 +100,34 @@ export async function fetchChainTx(hash: string): Promise<ChainLookup> {
       error?: unknown;
     };
     if (json.error || !json.result) return { ok: false, reason: "not_found" };
-    const t = (json.result.data ?? json.result) as Record<string, unknown>;
-    if (typeof t.to !== "string") return { ok: false, reason: "not_found" };
-    const hex = typeof t.recipientData === "string" ? t.recipientData : "";
-    return {
-      ok: true,
-      tx: {
-        to: t.to,
-        valueLuna: Number(t.value ?? 0),
-        memo: hex ? Buffer.from(hex, "hex").toString("utf8") : "",
-        executed: t.executionResult !== false,
-        confirmations: Number(t.confirmations ?? 0),
-      },
-    };
+    const tx = parseTx((json.result.data ?? json.result) as Record<string, unknown>);
+    return tx ? { ok: true, tx } : { ok: false, reason: "not_found" };
+  } catch {
+    return { ok: false, reason: "rpc_error" };
+  }
+}
+
+/**
+ * The most recent transactions involving an address. Used to find a payment by its memo when the app never
+ * learned the transaction hash (the app closed or froze mid-payment, or the wallet didn't report back).
+ */
+export async function fetchAddressTxs(address: string, max = 40): Promise<{ ok: true; txs: ChainTx[] } | { ok: false; reason: "rpc_unavailable" | "rpc_error" }> {
+  const url = process.env.NIMIQ_RPC_URL;
+  if (!url) return { ok: false, reason: "rpc_unavailable" };
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getTransactionsByAddress", params: [address, max, null] }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return { ok: false, reason: "rpc_error" };
+    const json = (await res.json()) as { result?: { data?: unknown }; error?: unknown };
+    const list = json.result?.data;
+    if (json.error || !Array.isArray(list)) return { ok: false, reason: "rpc_error" };
+    const txs = list.map((t) => parseTx(t as Record<string, unknown>)).filter((t): t is ChainTx => !!t && !!t.hash);
+    return { ok: true, txs };
   } catch {
     return { ok: false, reason: "rpc_error" };
   }
