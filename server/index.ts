@@ -52,8 +52,15 @@ app.onError((err, c) => {
 if (prod) {
   if (!existsSync("./dist/index.html")) console.warn("dist/ not found: run `npm run build` first.");
   app.use("/assets/*", serveStatic({ root: "./dist", onFound: (_p, c) => c.header("cache-control", "public, max-age=31536000, immutable") }));
-  app.use("*", serveStatic({ root: "./dist" }));
-  app.get("*", serveStatic({ path: "./dist/index.html" }));
+  // HTML must be revalidated on every load: it names the current hashed assets, so a cached copy would
+  // keep serving an old build after a deploy.
+  const html = {
+    onFound: (p: string, c: { header: (k: string, v: string) => void }) => {
+      if (p.endsWith(".html")) c.header("cache-control", "no-cache");
+    },
+  };
+  app.use("*", serveStatic({ root: "./dist", ...html }));
+  app.get("*", serveStatic({ path: "./dist/index.html", ...html }));
 }
 
 const port = Number(process.env.PORT ?? (prod ? 3000 : (process.env.API_PORT ?? 8787)));

@@ -34,7 +34,7 @@ export default function ArtistPage() {
           {artist.status !== "active" && <p className="sticker absolute left-4 top-4 z-10">Suspended</p>}
         </div>
         <div className="flex flex-col gap-5 px-6 pb-6 sm:px-8 sm:pb-8 md:flex-row md:items-end">
-          <Cover seed={`${artist.id}-avatar`} className="-mt-14 h-28 w-28 shrink-0 rounded-full ring-4 ring-surface sm:-mt-16 sm:h-32 sm:w-32" />
+          <Cover seed={`${artist.id}-avatar`} className="relative z-10 -mt-14 h-28 w-28 shrink-0 rounded-full ring-4 ring-surface sm:-mt-16 sm:h-32 sm:w-32" />
           <div className="min-w-0 flex-1">
             <p className="label">
               {artist.genre} · {followers} {followers === 1 ? "follower" : "followers"}
