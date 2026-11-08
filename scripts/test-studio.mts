@@ -41,7 +41,14 @@ async function call(path: string, opts: { method?: string; body?: unknown; as?: 
   return { status: r.status, json, headers: r.headers };
 }
 
-// A tiny valid WAV (0.5 s of silence) to upload.
+// A tiny valid MP3: silent MPEG-1 Layer III frames (128 kbps, 44.1 kHz, 417 bytes, 26 ms each).
+function mp3(seconds = 1, type = "audio/mpeg"): Blob {
+  const frames = Math.ceil((seconds * 1000) / 26);
+  const b = Buffer.alloc(frames * 417);
+  for (let i = 0; i < frames; i++) b.set([0xff, 0xfb, 0x90, 0x00], i * 417);
+  return new Blob([b], { type });
+}
+// A tiny valid WAV, which must now be refused: uploads are MP3 only.
 function wav(seconds = 1): Blob {
   const sr = 8000, n = sr * seconds, b = Buffer.alloc(44 + n * 2);
   b.write("RIFF", 0); b.writeUInt32LE(36 + n * 2, 4); b.write("WAVEfmt ", 8); b.writeUInt32LE(16, 16);
@@ -49,7 +56,7 @@ function wav(seconds = 1): Blob {
   b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write("data", 36); b.writeUInt32LE(n * 2, 40);
   return new Blob([b], { type: "audio/wav" });
 }
-const upload = (as: Session, fields: Record<string, string>, file: Blob | null, name = "t.wav") => {
+const upload = (as: Session, fields: Record<string, string>, file: Blob | null, name = "t.mp3") => {
   const f = new FormData();
   for (const [k, v] of Object.entries(fields)) f.set(k, v);
   if (file) f.set("file", file, name);
@@ -193,7 +200,7 @@ await test("artwork: replacing deletes the old file; removing returns to generat
 let trackId = "";
 await test("tracks: upload works; rights, audio type, size and fields are validated", async () => {
   const valid = { title: "Studio Test", priceNim: "3", previewSec: "10", durationSec: "12", ownsRights: "true" };
-  const good = await upload(artist, valid, wav(12));
+  const good = await upload(artist, valid, mp3(12));
   assert.equal(good.status, 200, JSON.stringify(good.json));
   trackId = good.json.id;
   // Each rejection must happen for its *intended* reason, not because some other field was wrong.
@@ -201,14 +208,21 @@ await test("tracks: upload works; rights, audio type, size and fields are valida
     assert.equal(r.status, 400, `${name}: expected 400, got ${r.status} ${JSON.stringify(r.json)}`);
     assert.match(String(r.json?.error), why, `${name}: rejected for the wrong reason: ${r.json?.error}`);
   };
-  await rejects("no rights attestation", await upload(artist, { ...valid, ownsRights: "false" }, wav()), /own this music/i);
-  await rejects("not audio", await upload(artist, valid, new Blob(["not audio"], { type: "text/plain" }), "x.txt"), /MP3, WAV/i);
+  await rejects("no rights attestation", await upload(artist, { ...valid, ownsRights: "false" }, mp3()), /own this music/i);
+  await rejects("not audio", await upload(artist, valid, new Blob(["not audio"], { type: "text/plain" }), "x.txt"), /Upload an MP3/i);
+  await rejects("a WAV is refused: MP3 only", await upload(artist, valid, wav(), "t.wav"), /Upload an MP3/i);
+  await rejects("AAC is refused", await upload(artist, valid, new Blob([new Uint8Array([0xff, 0xf1, 0x50, 0x80, 0x00, 0x1f, 0xfc])], { type: "audio/aac" }), "t.aac"), /Upload an MP3/i);
+  await rejects("declared MP3 but the bytes are not", await upload(artist, valid, new Blob([Buffer.alloc(4000, 7)], { type: "audio/mpeg" }), "t.mp3"), /valid MP3/i);
+  await rejects("a WAV renamed to .mp3 is caught by its content", await upload(artist, valid, new Blob([await wav().arrayBuffer()], { type: "audio/mpeg" }), "t.mp3"), /valid MP3/i);
+  await rejects("generic type without a .mp3 name", await upload(artist, valid, mp3(1, "application/octet-stream"), "t.bin"), /Upload an MP3/i);
+  assert.equal((await upload(artist, { ...valid, title: "Phone Upload" }, mp3(12, "application/octet-stream"), "phone-recording.MP3")).status, 200, "some phones send no type: a .mp3 name with real MP3 content is accepted");
+  assert.equal((await upload(artist, { ...valid, title: "Empty Type Upload" }, mp3(12, ""), "song.mp3")).status, 200, "an empty type is treated the same way");
   await rejects("no file", await upload(artist, valid, null), /choose an audio file/i);
-  await rejects("empty title", await upload(artist, { ...valid, title: "" }, wav()), /too small|title/i);
-  await rejects("negative price", await upload(artist, { ...valid, priceNim: "-5" }, wav()), /too small|>=0|price/i);
-  await rejects("duration under 5 s", await upload(artist, { ...valid, durationSec: "1" }, wav()), /too small|>=5|duration/i);
-  assert.equal((await upload(fan, valid, wav())).status, 403, "fans can't upload");
-  const big = new Blob([new Uint8Array(41 * 1024 * 1024)], { type: "audio/wav" });
+  await rejects("empty title", await upload(artist, { ...valid, title: "" }, mp3()), /too small|title/i);
+  await rejects("negative price", await upload(artist, { ...valid, priceNim: "-5" }, mp3()), /too small|>=0|price/i);
+  await rejects("duration under 5 s", await upload(artist, { ...valid, durationSec: "1" }, mp3()), /too small|>=5|duration/i);
+  assert.equal((await upload(fan, valid, mp3())).status, 403, "fans can't upload");
+  const big = new Blob([new Uint8Array(41 * 1024 * 1024)], { type: "audio/mpeg" });
   await rejects("over 40 MB", await upload(artist, valid, big), /40 MB/i);
 });
 

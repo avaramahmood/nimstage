@@ -19,7 +19,7 @@ export default function HelpPage() {
         <p>Live video shows open to ticket holders and supporters shortly before the start time. If you can&apos;t hear the stream, tap the button under the video. Premieres are pre-recorded audio played at the scheduled time.</p>
       </Section>
       <Section title="I'm an artist">
-        <p>Open the Studio tab to create your profile with a payout address, upload tracks, schedule shows, post to supporters and set up membership tiers. Double-check your payout address: payments can&apos;t be reversed.</p>
+        <p>Open the Studio tab to create your profile with a payout address, upload MP3 tracks, schedule shows, post to supporters and set up membership tiers. Double-check your payout address: payments can&apos;t be reversed.</p>
       </Section>
       <Section title="Deleting my account">
         <p>Go to Me, then Settings. You can download your data first. Deleting removes your activity and signs you out everywhere. Payment records are kept without your name or wallet attached.</p>

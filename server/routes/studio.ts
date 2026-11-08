@@ -7,7 +7,7 @@ import { getArtistByUser, getShow, getTiers, getTrack } from "@srv/data";
 import { processImage, type ArtKind } from "@srv/images";
 import { ACCENT_KEYS, MAX_LINKS, isSafeLink, type ArtistLink } from "@shared/artist";
 import { parseAddress } from "@srv/nimiq";
-import { ALLOWED_AUDIO, MAX_UPLOAD_BYTES, deleteMedia, saveMedia } from "@srv/storage";
+import { AUDIO_EXT, AUDIO_MIME, MAX_UPLOAD_BYTES, deleteMedia, isMp3Upload, looksLikeMp3, saveMedia } from "@srv/storage";
 import { MAX_NIM, nimToLuna } from "@shared/units";
 import { newId } from "@srv/ids";
 
@@ -114,7 +114,7 @@ const TrackFields = z.object({
 
 studio.post("/studio/tracks", async (c) => {
   const { artist } = await requireArtist(c);
-  rateLimit(`upload:${artist.id}`, 10, 10 * 60_000);
+  rateLimit(`upload:${artist.id}`, 30, 10 * 60_000); // enough for an album's worth of tracks
   let form: FormData;
   try {
     form = await c.req.formData();
@@ -125,10 +125,11 @@ studio.post("/studio/tracks", async (c) => {
   const file = form.get("file");
   if (!(file instanceof File) || file.size === 0) throw new HttpError("Choose an audio file");
   if (file.size > MAX_UPLOAD_BYTES) throw new HttpError("Audio must be under 40 MB");
-  const ext = ALLOWED_AUDIO.get(file.type);
-  if (!ext) throw new HttpError("Use MP3, WAV, OGG, M4A or AAC");
+  if (!isMp3Upload(file)) throw new HttpError("Upload an MP3 file (.mp3)");
+  const bytes = Buffer.from(await file.arrayBuffer());
+  if (!looksLikeMp3(bytes)) throw new HttpError("That file doesn't look like a valid MP3");
 
-  const key = await saveMedia(Buffer.from(await file.arrayBuffer()), ext);
+  const key = await saveMedia(bytes, AUDIO_EXT);
   const id = newId();
   const db = await getDb();
   await db.insert(schema.tracks).values({
@@ -139,7 +140,7 @@ studio.post("/studio/tracks", async (c) => {
     priceLuna: nimToLuna(f.priceNim),
     previewSec: Math.min(f.previewSec, f.durationSec),
     mediaKey: key,
-    mime: file.type === "audio/mp3" ? "audio/mpeg" : file.type,
+    mime: AUDIO_MIME,
   });
   return c.json({ id });
 });

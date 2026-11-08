@@ -124,16 +124,25 @@ export function TrackForm() {
   const [preview, setPreview] = useState("30");
   const [file, setFile] = useState<File | null>(null);
   const [duration, setDuration] = useState(0);
+  const [fileError, setFileError] = useState("");
   const [rights, setRights] = useState(false);
 
-  function pick(f: File | null) {
-    setFile(f);
+  function pick(f: File | null, input?: HTMLInputElement) {
+    setFileError("");
     setDuration(0);
+    if (f && !(f.type === "audio/mpeg" || /\.mp3$/i.test(f.name))) {
+      // Not an MP3: refuse it here with a clear message (the server checks again).
+      setFile(null);
+      setFileError("That isn't an MP3. Convert it to MP3 and choose it again.");
+      if (input) input.value = "";
+      return;
+    }
+    setFile(f);
     if (!f) return;
     const url = URL.createObjectURL(f);
     const a = new Audio(url);
     a.addEventListener("loadedmetadata", () => {
-      setDuration(Math.round(a.duration) || 0);
+      setDuration(Number.isFinite(a.duration) ? Math.round(a.duration) : 0); // some files report Infinity
       URL.revokeObjectURL(url);
     });
     if (!title) setTitle(f.name.replace(/\.[^.]+$/, ""));
@@ -156,9 +165,10 @@ export function TrackForm() {
         void run(() => api("/api/studio/tracks", fd), "Track uploaded.", "/studio");
       }}
     >
-      <Field label="Audio file" hint="MP3, WAV, OGG, M4A or AAC, up to 40 MB.">
-        <input className="field" type="file" required accept="audio/*" onChange={(e) => pick(e.target.files?.[0] ?? null)} />
+      <Field label="Audio file" hint="MP3 only, up to 40 MB.">
+        <input className="field" type="file" required accept="audio/mpeg,.mp3" onChange={(e) => pick(e.target.files?.[0] ?? null, e.target)} />
       </Field>
+      {fileError && <p role="alert" className="text-danger">{fileError}</p>}
       {file && <p className="font-mono text-xs text-muted">{file.name} · {duration ? `${duration}s` : "reading length…"}</p>}
       <Field label="Title"><input className="field" required maxLength={80} value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
       <div className="grid grid-cols-2 gap-3">

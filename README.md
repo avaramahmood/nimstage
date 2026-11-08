@@ -41,7 +41,7 @@ To try it inside Nimiq Pay, load your dev server's LAN URL as a custom mini app 
 | Role | What they can do |
 |---|---|
 | **Fan** | Browse live and upcoming shows, hear a free preview, buy a ticket / track / 30-day membership, tip, react live (🔥 ❤️ 👏 🎸), chat, vote in setlist polls, follow artists, earn a Fan Pass (levels, XP, badges), share and add shows to a calendar |
-| **Artist** | Profile with picture, banner, tagline, accent colour and up to 4 https links; cover art for every track and show (JPEG/PNG/WebP, resized to WebP on the server with location data stripped); payout address, upload tracks (with a rights attestation), schedule audio premieres or live video shows, public or supporter-only posts, up to 3 tiers, setlist polls (optionally tier-gated), verified earnings |
+| **Artist** | Profile with picture, banner, tagline, accent colour and up to 4 https links; cover art for every track and show (JPEG/PNG/WebP, resized to WebP on the server with location data stripped); payout address, upload MP3 tracks (checked by content, with a rights attestation), schedule audio premieres or live video shows, public or supporter-only posts, up to 3 tiers, setlist polls (optionally tier-gated), verified earnings |
 | **Admin** | Review reports, take content down, verify or suspend artists |
 
 Player: queue with auto-advance, keyboard shortcuts (space, arrows), lock-screen controls, and a live spectrum.

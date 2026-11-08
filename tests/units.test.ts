@@ -6,6 +6,7 @@ import { buildIcs, googleCalendarUrl, icsDate, icsEscape } from "@shared/calenda
 import { coverColors, coverStyle, fmtDuration, hash } from "@shared/format";
 import { checkEnv } from "@srv/env";
 import { joinWindow } from "@shared/live";
+import { isMp3Upload, looksLikeMp3 } from "@srv/storage";
 import { dayOptions, joinLocalValue, nextSlot, splitLocalValue, toLocalValue } from "@shared/when";
 import { ACCENTS, MAX_LINKS, accentColor, isSafeLink, readLinks } from "@shared/artist";
 import { formatNim, lunaToNim, MAX_LUNA, MAX_NIM, nimToLuna, normalizeAddress, shortAddress, TIP_PRESETS_NIM } from "@shared/units";
@@ -188,6 +189,28 @@ test("scheduler: default start, value round-trip and day list", () => {
   assert.match(days[0].label, /^Today/);
   assert.match(days[1].label, /^Tomorrow/);
   assert.equal(dayOptions(new Date(2026, 11, 30), 3)[2].value, "2027-01-01", "crosses the year");
+});
+test("uploads: MP3 only, judged by name/type and by what is inside", () => {
+  for (const type of ["audio/mpeg", "audio/mp3", "AUDIO/MPEG", "audio/x-mpeg"]) assert.equal(isMp3Upload({ type, name: "a.mp3" }), true, type);
+  assert.equal(isMp3Upload({ type: "audio/mpeg", name: "no-extension" }), true, "a declared MP3 type is enough");
+  for (const type of ["", "application/octet-stream"]) assert.equal(isMp3Upload({ type, name: "Song.MP3" }), true, "generic type + .mp3 name: " + type);
+  for (const [type, name] of [["audio/wav", "a.wav"], ["audio/aac", "a.aac"], ["audio/mp4", "a.m4a"], ["audio/ogg", "a.ogg"], ["audio/webm", "a.webm"], ["text/plain", "a.mp3.txt"], ["application/octet-stream", "a.bin"], ["", "a.m4a"], ["text/html", "a.mp3"]]) {
+    assert.equal(isMp3Upload({ type, name }), false, type + " " + name);
+  }
+  const frame = (b1: number, b2: number) => Buffer.from([0xff, b1, b2, 0x00, ...new Array(413).fill(0)]);
+  assert.equal(looksLikeMp3(frame(0xfb, 0x90)), true, "MPEG-1 Layer III, 128 kbps, 44.1 kHz");
+  assert.equal(looksLikeMp3(frame(0xf3, 0x90)), true, "MPEG-2 Layer III is still MP3");
+  assert.equal(looksLikeMp3(frame(0xf1, 0x50)), false, "an AAC (ADTS) frame header is not MP3");
+  assert.equal(looksLikeMp3(frame(0xfd, 0x90)), false, "Layer II");
+  assert.equal(looksLikeMp3(frame(0xfb, 0xf0)), false, "bad bitrate index");
+  assert.equal(looksLikeMp3(frame(0xfb, 0x9c)), false, "bad sample-rate index");
+  const id3 = Buffer.concat([Buffer.from("ID3"), Buffer.from([4, 0, 0, 0, 0, 0, 20]), Buffer.alloc(20), frame(0xfb, 0x90)]); // a 20-byte tag, then audio
+  assert.equal(looksLikeMp3(id3), true, "ID3 tag followed by a frame");
+  assert.equal(looksLikeMp3(Buffer.concat([Buffer.from("ID3"), Buffer.from([4, 0, 0, 0, 0, 0, 20]), Buffer.alloc(40)])), false, "a tag with no audio after it");
+  assert.equal(looksLikeMp3(Buffer.from("RIFF\0\0\0\0WAVEfmt ")), false, "a WAV");
+  assert.equal(looksLikeMp3(Buffer.from("<html><script>alert(1)</script></html>")), false, "HTML");
+  assert.equal(looksLikeMp3(Buffer.alloc(0)), false, "empty");
+  assert.equal(looksLikeMp3(Buffer.alloc(50_000, 0xff)), false, "all 0xFF is not a valid frame (reserved bits)");
 });
 test("units: address helpers", () => {
   assert.equal(normalizeAddress("nq07 0000 0000"), "NQ070000" + "0000");

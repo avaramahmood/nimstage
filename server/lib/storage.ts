@@ -15,16 +15,36 @@ const ROOT = path.resolve(process.env.MEDIA_DIR ?? "./.data/media");
 const BUCKET = process.env.S3_BUCKET;
 
 export const MAX_UPLOAD_BYTES = 40 * 1024 * 1024;
-export const ALLOWED_AUDIO = new Map([
-  ["audio/mpeg", "mp3"],
-  ["audio/mp3", "mp3"],
-  ["audio/wav", "wav"],
-  ["audio/x-wav", "wav"],
-  ["audio/ogg", "ogg"],
-  ["audio/mp4", "m4a"],
-  ["audio/aac", "aac"],
-  ["audio/webm", "webm"],
-]);
+/**
+  Uploaded audio is MP3 only. One format everywhere keeps playback, seeking and the byte-based preview limit
+  predictable on every device. The file is checked by what is inside it, not just by its name or declared type.
+*/
+export const AUDIO_EXT = "mp3";
+export const AUDIO_MIME = "audio/mpeg";
+const MP3_TYPES = new Set(["audio/mpeg", "audio/mp3", "audio/x-mpeg", "audio/mpeg3", "audio/x-mpeg-3"]);
+const GENERIC_TYPES = new Set(["", "application/octet-stream", "binary/octet-stream"]);
+
+/** Declared as MP3, or (some phones send no type) generic with a .mp3 name. Anything else is refused. */
+export function isMp3Upload(file: { type: string; name: string }): boolean {
+  const t = file.type.toLowerCase();
+  return MP3_TYPES.has(t) || (GENERIC_TYPES.has(t) && /\.mp3$/i.test(file.name));
+}
+
+/** Looks inside: an optional ID3 tag, then an MPEG Layer III frame header within the first 8 KB. */
+export function looksLikeMp3(buf: Buffer): boolean {
+  let start = 0;
+  if (buf.length >= 10 && buf.toString("latin1", 0, 3) === "ID3") start = 10 + (((buf[6] & 0x7f) << 21) | ((buf[7] & 0x7f) << 14) | ((buf[8] & 0x7f) << 7) | (buf[9] & 0x7f));
+  const end = Math.min(buf.length - 3, start + 8192);
+  for (let i = start; i < end; i++) {
+    if (buf[i] !== 0xff || (buf[i + 1] & 0xe0) !== 0xe0) continue; // frame sync
+    const version = (buf[i + 1] >> 3) & 3;
+    const layer = (buf[i + 1] >> 1) & 3;
+    const bitrate = buf[i + 2] >> 4;
+    const rate = (buf[i + 2] >> 2) & 3;
+    if (version !== 1 && layer === 1 && bitrate !== 15 && rate !== 3) return true; // not reserved; Layer III; sane bitrate and sample rate
+  }
+  return false;
+}
 
 let s3Client: Promise<import("@aws-sdk/client-s3").S3Client> | undefined;
 async function s3() {
