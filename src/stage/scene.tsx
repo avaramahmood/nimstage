@@ -427,7 +427,8 @@ function Fit({ count }: { count: number }) {
     const aspect = size.width / Math.max(1, size.height);
     const half = Math.tan((cam.fov * Math.PI) / 360);
     const d = (ringRadius(count) + 1.1) / (half * aspect);
-    cam.position.set(0, 0.6, Math.min(18, Math.max(7.6, d)) - 0.4);
+    // a wide, short-fronted canvas (desktop) can sit a little closer, so the ring fills more of it
+    cam.position.set(0, 0.6, Math.min(18, Math.max(aspect > 1.8 ? 6.8 : 7.6, d)) - 0.4);
     cam.lookAt(0, 0, -0.4);
     cam.updateProjectionMatrix();
     invalidate();
