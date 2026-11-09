@@ -73,6 +73,7 @@ export default function MePage() {
             {me?.artist ? <Row href="/studio" title="Artist studio" body={`Manage @${me.artist.handle}: shows, tracks, earnings`} /> : <Row href="/studio" title="Become an artist" body="Sell tickets and memberships for your music" />}
             {user.role === "admin" && <Row href="/admin" title="Admin" body="Review reports and verify artists" />}
             <Row href="/library" title="Library" body="Tickets, memberships, purchased tracks" />
+            <Row href="/earn" title="Earn" body="Stake your NIM and earn rewards" />
             <Row href="/receipts" title="Receipts" body="Payments you've made" />
             <Row href="/settings" title="Settings" body="Name, wallet, your data, delete account" />
             <Row href="/help" title="Help" body="How signing in and paying work" />

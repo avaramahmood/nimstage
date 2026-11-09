@@ -18,6 +18,7 @@ import { social } from "./routes/social";
 import { studio } from "./routes/studio";
 import { admin } from "./routes/admin";
 import { pages } from "./routes/pages";
+import { earn } from "./routes/earn";
 import { checkEnv } from "@srv/env";
 import { clearCache, swr } from "@srv/cache";
 import { discoverView, homeView } from "@srv/views";
@@ -41,7 +42,7 @@ api.use("*", async (c, next) => {
   // A write by an artist, an admin (takedowns, suspensions) or a payment can change what home and discover show.
   if (c.req.method !== "GET" && /^\/api\/(studio|admin|payments|reports|me)\b/.test(c.req.path)) clearCache();
 });
-for (const r of [auth, account, profile, images, payments, media, shows, polls, social, studio, admin, pages]) api.route("/", r);
+for (const r of [auth, account, profile, images, payments, media, shows, polls, social, studio, admin, pages, earn]) api.route("/", r);
 // Cheap liveness probe for the host (no database call, so a slow database can't fail the deploy).
 api.get("/health", (c) => c.json({ ok: true }));
 api.notFound((c) => c.json({ error: "Not found" }, 404));

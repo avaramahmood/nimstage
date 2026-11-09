@@ -25,6 +25,7 @@ Free tiers change. Check each service's pricing page when you sign up.
 | `NIMIQ_RPC_URL` | A Nimiq JSON-RPC node, used to look up a payment by hash. Without it real payments stay "pending". | See [Nimiq RPC](#5-nimiq-rpc). |
 | `ADMIN_ADDRESSES` | Comma-separated Nimiq addresses that become admins the first time they sign in. | Your own wallet address from Nimiq Pay (starts with `NQ`). It is public, not secret. |
 | `NIMSTAGE_PROOF_ADDRESS` | Optional. Where the one-luna "I own this address" transaction is sent when someone signs in from a normal browser. Defaults to the first `ADMIN_ADDRESSES` entry, then a built-in valid address nobody holds the key for. | Leave unset unless you want it to go somewhere specific. It is public, not secret. |
+| `VALIDATORS_API_URL` | Optional. Where the Earn screen reads the staking pool list. Defaults to Nimiq's official mainnet validators API, so leave it unset. | Only for a different or mirrored list. It is public, not secret. |
 | `NODE_ENV` | Set to `production`. | `npm start` already sets it; on Render set it explicitly. |
 
 ### Media storage (needed on Render)

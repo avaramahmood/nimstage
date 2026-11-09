@@ -50,6 +50,16 @@ check("no wallet addresses of other users leak through posts", !JSON.stringify(f
 const later = await get(`/api/me/foryou?since=${encodeURIComponent(new Date(Date.now() + 60_000).toISOString())}`, fan);
 check("after looking (since = later), nothing counts as new any more, so the dot clears", later.fresh === 0 && later.live.some((s) => s.id === showId), "fresh=" + later.fresh);
 
+// supporter-only posts must never be shown to a follower who isn't a supporter
+const tier = await post("/api/studio/tiers", { name: "Backstage", perks: "More", priceNim: 2 }, artist);
+await post("/api/studio/posts", { body: "SECRET-FOR-SUPPORTERS-ONLY", tierId: tier.id }, artist);
+const withTier = await get("/api/me/foryou", fan);
+check("supporter-only post text is not in For you", !JSON.stringify(withTier).includes("SECRET-FOR-SUPPORTERS-ONLY"));
+check("a garbage `since` is ignored, not an error", (await get("/api/me/foryou?since=not-a-date", fan)).status === 200 && (await get("/api/me/foryou?since=", fan)).status === 200);
+const artistsOwn = await get("/api/me/foryou", artist);
+check("each person sees their own follows: the artist follows nobody", artistsOwn.following === 0 && artistsOwn.live.length === 0, JSON.stringify(artistsOwn).slice(0, 120));
+check("no payout addresses in the posts or tracks", !JSON.stringify(withTier.posts).includes("payoutAddress") && !JSON.stringify(withTier.tracks).includes("payoutAddress"));
+
 check("unfollowing removes it again", (await post("/api/follow", { artistId: mira.id }, fan)).following === false && (await get("/api/me/foryou", fan)).following === 0);
 
 console.log(failed ? `\n${failed} check(s) failed` : "\nAll For-you checks passed.");

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { HttpError, requireUser } from "@srv/http";
+import { HttpError, rateLimit, requireUser } from "@srv/http";
 import { getUser } from "@srv/session";
 import { swr } from "@srv/cache";
 import { randomArtistHandle } from "@srv/data";
@@ -32,6 +32,7 @@ pages.get("/library", async (c) => c.json(await libraryView((await requireUser(c
 // What the artists you follow are up to: live now, coming up, new tracks and posts. `since` (an ISO time) is when you last looked.
 pages.get("/me/foryou", async (c) => {
   const user = await requireUser(c);
+  rateLimit(`foryou:${user.id}`, 60, 60_000); // the app asks about every 20 s per open tab
   const raw = c.req.query("since");
   const t = raw ? new Date(raw) : undefined;
   return c.json(await forYouView(user.id, t && !Number.isNaN(+t) ? t : undefined));

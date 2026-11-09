@@ -10,12 +10,16 @@
     "demo": "node scripts/demo.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test:unit": "vitest run tests/units.test.ts",
+    "test:unit": "vitest run tests/units.test.ts tests/earn.test.ts",
     "test:a11y": "vitest run tests/a11y.test.tsx",
     "test:features": "tsx scripts/test-features.mts",
     "test:studio": "tsx scripts/test-studio.mts",
     "test:login": "node scripts/test-login.mjs",
     "test:payments": "node scripts/test-payments.mjs",
+    "test:browser": "node scripts/test-browser.mjs",
+    "test:foryou": "node scripts/test-foryou.mjs",
+    "test:earn": "node scripts/test-earn.mjs",
+    "test:suite": "node scripts/run-suite.mjs",
     "test:contrast": "node scripts/contrast.mjs"
   },
   "dependencies": {

@@ -45,7 +45,8 @@ export async function verifyLoginSignature(
 export async function parseAddress(input: string): Promise<string | null> {
   try {
     const { Address } = await loadCore();
-    return Address.fromAny(input.trim()).toUserFriendlyAddress();
+    // addresses are upper-case by definition; people paste them in any case
+    return Address.fromAny(input.trim().toUpperCase()).toUserFriendlyAddress();
   } catch {
     return null;
   }

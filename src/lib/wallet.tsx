@@ -29,6 +29,8 @@ type Ctx = {
   demoLogin: (persona: "fan" | "artist" | "admin") => Promise<void>;
   logout: () => Promise<void>;
   pay: (req: PayRequest, onStage?: (s: PayStage) => void) => Promise<void>;
+  /** The Nimiq Pay wallet provider (balances, staking), or null outside Nimiq Pay. */
+  nimiq: () => Promise<import("@nimiq/mini-app-sdk").NimiqProvider | null>;
   /** After a payment confirmed outside pay() (a manual payment): refresh pages and check for new badges. */
   paid: () => void;
   /** Take a session token from a sign-in that happened elsewhere (the address-proof flow). */
@@ -187,8 +189,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [me, router, toast]);
 
   const value = useMemo(
-    () => ({ me, loading, inNimiqPay, connect, demoLogin, logout, pay, paid, acceptToken, refresh }),
-    [me, loading, inNimiqPay, connect, demoLogin, logout, pay, paid, acceptToken, refresh],
+    () => ({ me, loading, inNimiqPay, connect, demoLogin, logout, pay, paid, acceptToken, refresh, nimiq: provider }),
+    [me, loading, inNimiqPay, connect, demoLogin, logout, pay, paid, acceptToken, refresh, provider],
   );
   return <WalletCtx.Provider value={value}>{children}</WalletCtx.Provider>;
 }

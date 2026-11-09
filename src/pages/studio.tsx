@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { Link } from "@/components/link";
 import { EmptyState, SectionTitle } from "@/components/ui";
 import { ClosePollButton, ProfileForm, RemoveButton } from "@/components/studio-forms";
@@ -49,6 +49,14 @@ export default function StudioPage() {
           <Link href="/studio/profile" className="underline underline-offset-4">Edit profile</Link>
         </p>
       </header>
+
+      <Link href="/earn" className="card flex items-center justify-between gap-4 p-4">
+        <span>
+          <span className="block font-medium">Put your earnings to work</span>
+          <span className="block text-sm text-muted">Stake 100 NIM or more and earn rewards while you keep your NIM.</span>
+        </span>
+        <ChevronRight aria-hidden="true" size={20} className="shrink-0" />
+      </Link>
 
       <section aria-label="Earnings" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Stat hot label="Earned" value={formatNim(s.earnings.total, "0 NIM")} />
