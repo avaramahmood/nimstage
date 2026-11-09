@@ -8,6 +8,7 @@ import { ShowPoster } from "@/components/show-card";
 import { SurpriseButton } from "@/components/surprise";
 import { stateOf } from "@/components/page-state";
 import { useDiscover } from "@/lib/queries";
+import { followedFirst, useForYou } from "@/lib/foryou";
 import { useTitle } from "@/lib/use-now";
 import { formatNim } from "@shared/units";
 
@@ -19,11 +20,17 @@ export default function DiscoverPage() {
   const q = (params.get("q") ?? "").trim().slice(0, 60);
   const [draft, setDraft] = useState(q);
   const res = useDiscover(q);
+  const ids = useForYou().data?.ids;
 
   const state = stateOf(res);
   const body = (() => {
     if (state) return state;
-    const { artists, tracks, shows } = res.data!;
+    const data = res.data!;
+    // artists you follow come first in every list
+    const artists = followedFirst(data.artists, ids, (a) => a.id);
+    const tracks = followedFirst(data.tracks, ids, (t) => t.artist.id);
+    const shows = followedFirst(data.shows, ids, (s) => s.artistId);
+    const mine = new Set(ids ?? []);
     if (!artists.length && !tracks.length && !shows.length) {
       return <div className="mt-10"><EmptyState title="Nothing found" body={`No artists, shows or tracks match “${q}”. Try a genre or a name.`} /></div>;
     }
@@ -45,7 +52,7 @@ export default function DiscoverPage() {
                     <Cover seed={a.id} image={a.avatarKey} className="h-16 w-16 rounded-full" />
                     <span className="min-w-0">
                       <span className="display display-sm block truncate">{a.name}</span>
-                      <span className="text-sm text-muted">{a.genre}</span>
+                      <span className="text-sm text-muted">{a.genre}{mine.has(a.id) ? " · Following" : ""}</span>
                     </span>
                   </Link>
                 </li>

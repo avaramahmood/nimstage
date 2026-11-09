@@ -8,6 +8,8 @@ import { Compass, House, Library, Mic, Search, User } from "lucide-react";
 import type { ReactNode } from "react";
 import { useWallet } from "@/lib/wallet";
 import { MiniPlayer, PlayerSheet } from "@/components/player-ui";
+import { LiveBanner } from "@/components/foryou";
+import { useForYou } from "@/lib/foryou";
 
 const TABS = [
   { href: "/", label: "Home", Icon: House },
@@ -47,6 +49,7 @@ function Account() {
 export function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const { me } = useWallet();
+  const fresh = useForYou().data?.fresh ?? 0;
   const isActive = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
 
   return (
@@ -68,6 +71,7 @@ export function Shell({ children }: { children: ReactNode }) {
             </div>
           </div>
         </header>
+        <LiveBanner />
 
         <main id="main" className="app-main min-w-0 pb-[calc(168px+env(safe-area-inset-bottom))]">
           {/* Everyone needs a username: signed in without one, you go to the setup screen first. */}
@@ -87,10 +91,12 @@ export function Shell({ children }: { children: ReactNode }) {
               aria-current={isActive(href) ? "page" : undefined}
               className={`flex min-h-16 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors ${isActive(href) ? "text-accent" : "text-muted"}`}
             >
-              <span className={`grid h-8 w-14 place-items-center rounded-full transition-colors ${isActive(href) ? "bg-accent/15" : ""}`}>
+              <span className={`relative grid h-8 w-14 place-items-center rounded-full transition-colors ${isActive(href) ? "bg-accent/15" : ""}`}>
                 <Icon aria-hidden="true" size={22} />
+                {href === "/me" && fresh > 0 && <span aria-hidden="true" className="absolute right-2.5 top-0 h-2.5 w-2.5 rounded-full bg-accent ring-2 ring-bg" />}
               </span>
               {label}
+              {href === "/me" && fresh > 0 && <span className="sr-only"> (new updates)</span>}
             </Link>
           ))}
         </div>

@@ -62,15 +62,12 @@ function Message({ title, body }: { title: string; body?: string }) {
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong.");
 
-/** What the browser's media errors actually mean, in words an artist can act on. */
-function explainMediaError(e: unknown): string {
+/** One short sentence. Inside Nimiq Pay the camera and microphone often aren't available, so the answer is the browser. */
+function explainMediaError(e: unknown, inNimiqPay: boolean): string {
+  if (inNimiqPay) return "Switch to your browser to go live.";
   const name = (e as Error)?.name ?? "";
-  if (name === "NotAllowedError" || name === "SecurityError")
-    return "This app isn't allowed to use your camera or microphone. Allow it in your phone's Settings → Apps → Nimiq Pay → Permissions, then try again. If that doesn't work, open this page in your phone's or computer's browser and go live from there.";
-  if (name === "NotReadableError" || /could not start|audio source|video source/i.test((e as Error)?.message ?? ""))
-    return "Your device wouldn't start the microphone or camera. Another app may be using it, or this app doesn't have permission (Settings → Apps → Nimiq Pay → Permissions).";
-  if (name === "NotFoundError" || name === "OverconstrainedError") return "No camera or microphone was found on this device.";
-  return errText(e);
+  if (name === "NotAllowedError" || name === "SecurityError") return "Allow the camera and microphone in your browser's address bar, then try again.";
+  return "No camera or microphone found on this device.";
 }
 
 type Common = { showId: string; room: LiveRoomState; artist: LiveArtist; title: string };
@@ -223,7 +220,6 @@ function Host({ showId, room, artist, title }: Common) {
   const roomRef = useRef<Room | null>(null);
   const [phase, setPhase] = useState<"idle" | "preview" | "connecting" | "live" | "ended">("idle");
   const [error, setError] = useState("");
-  const [note, setNote] = useState("");
   const [has, setHas] = useState({ audio: false, video: false });
   const [mic, setMic] = useState(true);
   const [cam, setCam] = useState(true);
@@ -243,18 +239,14 @@ function Host({ showId, room, artist, title }: Common) {
     [],
   );
 
-  /** Camera + mic if possible; otherwise whichever one works, and say so. Never an all-or-nothing failure. */
+  /** Camera + microphone, or microphone alone. If neither works, one short alert sends the artist to their browser. */
   async function startPreview() {
     setError("");
-    setNote("");
     // A phone held upright films portrait, like an Instagram Live; a computer's webcam stays landscape.
     const phoneLike = matchMedia("(pointer: coarse)").matches;
     const video = { facingMode: facing, ...(phoneLike ? { resolution: { width: 720, height: 1280, frameRate: 30 } } : {}) };
-    const tries = [
-      { opts: { audio: true, video }, note: "" },
-      { opts: { audio: true, video: false as const }, note: "Your camera isn't available, so you'll stream audio only. That works fine for music: viewers hear you but don't see you." },
-      { opts: { audio: false, video }, note: "Your microphone isn't available, so viewers will see you but not hear you. Fix the microphone permission before you go live." },
-    ];
+    // Camera + microphone, or microphone alone (a music show needs no picture). Never picture without sound.
+    const tries = [{ opts: { audio: true, video } }, { opts: { audio: true, video: false as const } }];
     let first: unknown = null;
     for (const t of tries) {
       try {
@@ -265,7 +257,6 @@ function Host({ showId, room, artist, title }: Common) {
         setHas({ audio: local.some((x) => x.kind === Track.Kind.Audio), video: !!v });
         setMic(true);
         setCam(true);
-        setNote(t.note);
         setPhase("preview");
         setFull(true); // straight into the full-screen studio
         return;
@@ -273,7 +264,7 @@ function Host({ showId, room, artist, title }: Common) {
         first ??= e;
       }
     }
-    setError(explainMediaError(first));
+    setError(explainMediaError(first, inNimiqPay));
   }
 
   async function goLive() {
@@ -412,31 +403,14 @@ function Host({ showId, room, artist, title }: Common) {
         )}
       </Frame>
 
-      {note && <p className="rounded-2xl border border-line bg-white/[0.04] p-3 text-sm text-muted">{note}</p>}
       {error && (
-        <div role="alert" className="grid gap-3 rounded-2xl border border-danger/40 bg-danger/10 p-3 text-danger">
-          <p>{error}</p>
-          <button type="button" className="btn btn-ghost btn-sm w-fit text-ink" onClick={() => void copyLink()}>
-            <Copy aria-hidden="true" size={16} /> Copy link to open in your browser
-          </button>
-        </div>
-      )}
-
-      {inNimiqPay && (phase === "idle" || phase === "ended") && !error && (
-        <div className="rounded-2xl border border-line bg-white/[0.04] p-3 text-sm text-muted">
-          <p>
-            <strong className="text-ink">Camera or microphone blocked in Nimiq Pay?</strong> Some phones don't let Nimiq Pay use them. You can go live from your phone's browser instead: open this same page there and sign in with your wallet address. It's the same account and the same show.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => void copyLink()}>
-              <Copy aria-hidden="true" size={16} /> Copy link
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-danger/40 bg-danger/10 p-3 text-danger">
+          <p className="font-medium">{error}</p>
+          {inNimiqPay && (
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => void (canShare ? shareLink() : copyLink())}>
+              <Copy aria-hidden="true" size={16} /> Open in browser
             </button>
-            {canShare && (
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => void shareLink()}>
-                Share…
-              </button>
-            )}
-          </div>
+          )}
         </div>
       )}
 

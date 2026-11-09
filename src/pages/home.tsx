@@ -8,6 +8,8 @@ import { SurpriseButton } from "@/components/surprise";
 import { stateOf } from "@/components/page-state";
 import { Stage } from "@/stage/stage";
 import { useHome } from "@/lib/queries";
+import { ForYouRow } from "@/components/foryou";
+import { useForYou } from "@/lib/foryou";
 import { useNow, useTitle } from "@/lib/use-now";
 import { showState } from "@shared/showstate";
 import { formatNim } from "@shared/units";
@@ -16,14 +18,17 @@ export default function HomePage() {
   useTitle("");
   const q = useHome();
   const now = useNow();
+  const fy = useForYou();
+  const followed = useMemo(() => new Set(fy.data?.ids ?? []), [fy.data]);
 
   // Live/upcoming is recomputed on the client every few seconds, so a show that just started or
   // ended moves between sections without a reload.
   const { hero, rest } = useMemo(() => {
     const all = [...(q.data?.live ?? []), ...(q.data?.upcoming ?? [])].filter((s) => showState(s, now) !== "ended");
-    all.sort((a, b) => Number(showState(b, now) === "live") - Number(showState(a, now) === "live") || +new Date(a.startsAt) - +new Date(b.startsAt));
+    // live first, then shows by artists you follow, then by start time: the hero record is the first of these
+    all.sort((a, b) => Number(showState(b, now) === "live") - Number(showState(a, now) === "live") || Number(followed.has(b.artistId)) - Number(followed.has(a.artistId)) || +new Date(a.startsAt) - +new Date(b.startsAt));
     return { hero: all[0], rest: all.slice(1) };
-  }, [q.data, now]);
+  }, [q.data, now, followed]);
 
   const state = stateOf(q);
   if (state) return state;
@@ -32,6 +37,8 @@ export default function HomePage() {
   return (
     <div className="wrap grid gap-12 pt-6 md:pt-8">
       {hero ? <ShowHero show={hero} /> : <EmptyState title="Quiet night" body="No shows are scheduled yet. Artists can open the Studio tab to schedule the first one." />}
+
+      <ForYouRow />
 
       <Stage artists={lineup} tracks={recent} />
 

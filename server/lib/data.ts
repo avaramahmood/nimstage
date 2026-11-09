@@ -14,7 +14,7 @@ export type Tier = typeof tiers.$inferSelect;
 export type ShowState = "upcoming" | "live" | "ended";
 
 /** Browsable tracks: priced tracks, or free tracks that aren't the exclusive audio of a ticketed show. */
-const standaloneTrack = or(
+export const standaloneTrack = or(
   gt(tracks.priceLuna, 0),
   sql`not exists (select 1 from shows s where s.track_id = ${tracks.id} and s.price_luna > 0 and s.status = 'scheduled')`,
 );
@@ -175,6 +175,8 @@ async function withArtists(rows: Show[]): Promise<ShowCardData[]> {
     })
     .filter((x): x is ShowCardData => !!x && x.artist.status === "active");
 }
+
+export const getShowCards = withArtists;
 
 export async function getHome() {
   const db = await getDb();

@@ -242,8 +242,8 @@ export function Stage({ artists, tracks }: Props) {
 
   const ok = capability() !== "none";
   return (
-    <section aria-label="Interactive stage" className="relative -mx-2 sm:-mx-4 lg:left-1/2 lg:mx-0 lg:w-[min(calc(100vw-var(--rail)-32px),1480px)] lg:-translate-x-1/2">
-      <div ref={box} className="relative h-[290px] md:h-[460px] lg:h-[640px] xl:h-[700px] [mask-image:linear-gradient(to_bottom,transparent,#000_16%,#000_84%,transparent)]">
+    <section aria-label="Interactive stage" className="relative -mx-2 sm:-mx-4 lg:left-1/2 lg:mx-0 lg:w-[min(calc(100vw-var(--rail)-32px),1180px)] lg:-translate-x-1/2">
+      <div ref={box} className="relative h-[290px] md:h-[380px] lg:h-[460px] xl:h-[500px] [mask-image:linear-gradient(to_bottom,transparent,#000_16%,#000_84%,transparent)]">
         {ok ? (
           <Upgrade active={visible && up} fallback={<Flat items={items} />}>
             <Suspense fallback={null}>

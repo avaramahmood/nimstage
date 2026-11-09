@@ -5,6 +5,7 @@ import { PlayToggle } from "@/components/player-ui";
 import { PassCard } from "@/components/pass-card";
 import { stateOf } from "@/components/page-state";
 import { useLibrary } from "@/lib/queries";
+import { followedFirst, useForYou } from "@/lib/foryou";
 import { useTitle } from "@/lib/use-now";
 import { fmtWhen } from "@shared/format";
 import { formatNim } from "@shared/units";
@@ -12,9 +13,12 @@ import { formatNim } from "@shared/units";
 export default function LibraryPage() {
   useTitle("Library");
   const q = useLibrary();
+  const ids = useForYou().data?.ids;
   const state = stateOf(q, { title: "Library", body: "Your tickets, supporter memberships and purchased tracks live here, tied to your wallet." });
   if (state) return state;
-  const lib = q.data!;
+  const raw = q.data!;
+  // tickets and tracks from artists you follow come first
+  const lib = { ...raw, shows: followedFirst(raw.shows, ids, (s) => s.artistId), tracks: followedFirst(raw.tracks, ids, (t) => t.artist.id) };
   const empty = !lib.shows.length && !lib.tracks.length && !lib.supporting.length && !lib.following.length;
 
   return (

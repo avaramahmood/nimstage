@@ -9,6 +9,7 @@ import { useWallet } from "@/lib/wallet";
 import { useToast } from "@/components/toast";
 import { SignInPanel } from "@/components/auth";
 import { ApproveDevice } from "@/components/manual";
+import { UpdatesCard } from "@/components/foryou";
 import { PassCard } from "@/components/pass-card";
 import { Skeleton } from "@/components/skeleton";
 import { useTitle } from "@/lib/use-now";
@@ -63,6 +64,7 @@ export default function MePage() {
               </Link>
             )}
           </div>
+          <UpdatesCard />
           <div className="mt-4">
             <PassCard />
           </div>

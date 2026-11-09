@@ -22,10 +22,12 @@ import {
   ticketedShowsByTrack,
   type AccessCtx,
 } from "./data";
+import { getForYou } from "./foryou";
 import type { SessionUser } from "./session";
 import { reconcileSoon } from "./payments";
 
 export const homeView = () => getHome();
+export const forYouView = (userId: string, since?: Date) => getForYou(userId, since);
 export const discoverView = (q: string) => discover(q);
 
 export async function artistView(handle: string, ctx: AccessCtx) {
